@@ -1,0 +1,1641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Approach Trip Trainer</title>
+<meta name="theme-color" content="#171C23">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Approach">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: a phone-first training log that shares the trip boards' look.
+   Cool grey field, condensed display type, one accent that follows the area you train for.
+   The signature is the bolt line: 13 weeks drawn as bolts on a route, clipped as you finish them. */
+:root {
+  color-scheme: light;
+  --bg: #E6E9ED;
+  --surface: #F6F7F9;
+  --raised: #FFFFFF;
+  --ink: #171C23;
+  --muted: #55606C;
+  --rule: #D0D6DD;
+  --good: #2B6A49;
+  --warn: #9A5410;
+  --bad: #A8371B;
+  --acc-default: #24597A;
+  --acc-rrg: #9A5410;
+  --acc-nrg: #2E5B45;
+  --acc-ic: #A63D1C;
+  --accent: var(--acc-default);
+  --on-accent: #FFFFFF;
+  --s1: #1A6BB8;
+  --s2: #C8621E;
+  --display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --tabs-h: 4rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #12161B; --surface: #1A2027; --raised: #222A33; --ink: #E9EDF1; --muted: #9FAAB6; --rule: #313B46;
+    --good: #7CC79C; --warn: #E0A05C; --bad: #EE8A6C;
+    --acc-default: #7FB6D9; --acc-rrg: #E09A52; --acc-nrg: #86BD9F; --acc-ic: #E27B52; --on-accent: #12161B;
+    --s1: #3F8FDB; --s2: #CC7636;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #12161B; --surface: #1A2027; --raised: #222A33; --ink: #E9EDF1; --muted: #9FAAB6; --rule: #313B46;
+  --good: #7CC79C; --warn: #E0A05C; --bad: #EE8A6C;
+  --acc-default: #7FB6D9; --acc-rrg: #E09A52; --acc-nrg: #86BD9F; --acc-ic: #E27B52; --on-accent: #12161B;
+  --s1: #3F8FDB; --s2: #CC7636;
+}
+body[data-area="rrg"] { --accent: var(--acc-rrg); }
+body[data-area="nrg"] { --accent: var(--acc-nrg); }
+body[data-area="ic"] { --accent: var(--acc-ic); }
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { scroll-padding-top: 4rem; -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 1rem; line-height: 1.5; -webkit-tap-highlight-color: transparent; }
+a { color: var(--accent); text-underline-offset: 2px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 700; text-transform: uppercase; line-height: 1; margin: 0; text-wrap: balance; letter-spacing: .005em; }
+h1 { font-size: clamp(2.5rem, 10vw, 3.6rem); line-height: .92; }
+h2 { font-size: 1.6rem; }
+h3 { font-size: 1.3rem; }
+p { margin: 0; }
+button { font: inherit; color: inherit; }
+.mono { font-family: var(--mono); font-size: .74rem; letter-spacing: .07em; text-transform: uppercase; }
+.muted { color: var(--muted); }
+.small { font-size: .9rem; }
+.num { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Shell */
+.top { position: sticky; top: 0; z-index: 20; background: var(--ink); color: var(--bg); }
+.top-in { max-width: 44rem; margin: 0 auto; padding: .5rem 1rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 3rem; }
+.brand { font-family: var(--display); font-weight: 700; font-size: 1.45rem; text-transform: uppercase; letter-spacing: .03em; color: inherit; text-decoration: none; display: flex; align-items: center; gap: .5rem; }
+.brand svg { width: 1.3rem; height: 1.3rem; }
+.top .ctx { font-family: var(--mono); font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; opacity: .8; text-align: right; }
+.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--raised); border-top: 1px solid var(--rule); }
+.tabs-in { max-width: 44rem; margin: 0 auto; display: grid; grid-template-columns: repeat(5, 1fr); height: var(--tabs-h); }
+.tabs a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .15rem; text-decoration: none; color: var(--muted); font-size: .7rem; font-weight: 500; position: relative; }
+.tabs a svg { width: 1.45rem; height: 1.45rem; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.tabs a[aria-current="page"] { color: var(--ink); font-weight: 600; }
+.tabs a[aria-current="page"]::before { content: ""; position: absolute; top: -1px; left: 22%; right: 22%; height: 3px; background: var(--accent); border-radius: 0 0 3px 3px; }
+.wrap { max-width: 44rem; margin: 0 auto; padding: 1.25rem 1rem calc(var(--tabs-h) + 5.5rem); display: flex; flex-direction: column; gap: 1.6rem; }
+.stack { display: flex; flex-direction: column; gap: .7rem; }
+.row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.between { justify-content: space-between; }
+.grow { flex: 1; min-width: 0; }
+
+/* Blocks */
+.hero { display: flex; flex-direction: column; gap: .5rem; padding-bottom: 1rem; border-bottom: 3px solid var(--ink); }
+.hero .mono { color: var(--accent); }
+.hero-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; }
+.bignum { font-family: var(--display); font-weight: 700; font-size: 2.8rem; line-height: .9; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.bignum small { display: block; font-family: var(--mono); font-size: .68rem; font-weight: 500; letter-spacing: .07em; color: var(--muted); text-transform: uppercase; margin-top: .25rem; }
+.sec-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; border-bottom: 2px solid var(--ink); padding-bottom: .35rem; flex-wrap: wrap; }
+.sec-head .mono { color: var(--muted); }
+.card { background: var(--surface); border: 1px solid var(--rule); border-radius: .7rem; padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: .7rem; }
+.card.key { border: 2px solid var(--accent); }
+.card.flat { background: transparent; }
+.pill { display: inline-flex; align-items: center; gap: .3rem; font-family: var(--mono); font-size: .68rem; letter-spacing: .05em; text-transform: uppercase; padding: .15rem .55rem; border-radius: 999px; border: 1px solid var(--rule); color: var(--ink); white-space: nowrap; }
+.pill.solid { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.pill.ink { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.pill.good { background: var(--good); border-color: var(--good); color: var(--on-accent); }
+.pill.warn { border-color: var(--warn); color: var(--warn); }
+.pill.bad { background: var(--bad); border-color: var(--bad); color: var(--on-accent); }
+.pill.dash { border-style: dashed; border-color: var(--muted); }
+.btn { font: inherit; font-weight: 600; background: var(--accent); color: var(--on-accent); border: 1.5px solid var(--accent); border-radius: .6rem; padding: .55rem 1rem; min-height: 2.75rem; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: .4rem; transition: transform .08s; }
+.btn:active { transform: scale(.97); }
+.btn.ghost { background: transparent; color: var(--accent); }
+.btn.quiet { background: var(--raised); border-color: var(--rule); color: var(--ink); font-weight: 500; }
+.btn.sm { min-height: 2.25rem; padding: .3rem .7rem; font-size: .88rem; border-radius: .5rem; }
+.btn.wide { width: 100%; }
+.btn:disabled { opacity: .5; cursor: default; }
+.link { background: none; border: 0; padding: .35rem 0; color: var(--muted); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; font-size: .9rem; }
+.link.armed { color: var(--bad); font-weight: 600; }
+.msg { background: var(--surface); border-left: 3px solid var(--accent); padding: .6rem .8rem; font-size: .92rem; border-radius: 0 .4rem .4rem 0; }
+.msg.coach { border-left-color: var(--ink); }
+.msg b { font-weight: 600; }
+.why { font-size: .9rem; color: var(--muted); border-left: 3px solid var(--accent); padding-left: .7rem; }
+.foot { font-size: .85rem; color: var(--muted); border-top: 1px solid var(--rule); padding-top: 1rem; }
+.banner { background: var(--ink); color: var(--bg); border-radius: .6rem; padding: .6rem .9rem; display: flex; justify-content: space-between; align-items: center; gap: .8rem; font-size: .9rem; flex-wrap: wrap; }
+.banner button { color: inherit; }
+
+/* Bolt line */
+.bolts { display: flex; flex-direction: column; gap: .35rem; }
+.bolt-row { display: grid; grid-template-columns: repeat(13, 1fr); align-items: center; position: relative; }
+.bolt-row::before { content: ""; position: absolute; left: 3.8%; right: 3.8%; top: 50%; height: 2px; background: var(--rule); }
+.bolt { position: relative; display: flex; justify-content: center; align-items: center; height: 2.2rem; background: none; border: 0; padding: 0; cursor: pointer; }
+.bolt i { width: .8rem; height: .8rem; border-radius: 50%; border: 2px solid var(--muted); background: var(--bg); display: block; transition: transform .12s; }
+.bolt.done i { background: var(--ink); border-color: var(--ink); }
+.bolt.part i { background: linear-gradient(90deg, var(--ink) 50%, var(--bg) 50%); border-color: var(--ink); }
+.bolt.deload i { border-radius: 2px; width: 1rem; height: .45rem; }
+.bolt.test i { border-radius: 2px; transform: rotate(45deg); }
+.bolt.now i { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 28%, transparent); background: var(--accent); }
+.bolt.sel::after { content: ""; position: absolute; bottom: -.1rem; left: 25%; right: 25%; height: 3px; background: var(--ink); border-radius: 2px; }
+.bolt-labels { display: grid; grid-template-columns: repeat(13, 1fr); font-family: var(--mono); font-size: .62rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.bolt-labels span { border-top: 2px solid var(--rule); padding-top: .25rem; margin: 0 1px; white-space: nowrap; overflow: hidden; }
+.bolt-labels span.cur { border-top-color: var(--accent); color: var(--ink); }
+
+/* Week strip */
+.week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: .3rem; }
+.day { background: var(--surface); border: 1px solid var(--rule); border-radius: .55rem; padding: .45rem .2rem; display: flex; flex-direction: column; gap: .15rem; align-items: center; text-align: center; min-height: 4.3rem; text-decoration: none; color: var(--ink); cursor: pointer; }
+.day b { font-family: var(--display); font-size: 1.05rem; text-transform: uppercase; line-height: 1; }
+.day em { font-style: normal; font-family: var(--mono); font-size: .62rem; color: var(--muted); }
+.day span { font-size: .68rem; line-height: 1.15; color: var(--muted); overflow-wrap: anywhere; }
+.day.today { border: 2px solid var(--accent); }
+.day.done { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.day.done span, .day.done em { color: var(--bg); opacity: .8; }
+.day.restd { background: transparent; border-style: dashed; }
+
+/* Session parts */
+ul.parts { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+ul.parts li { display: grid; grid-template-columns: 6.2rem minmax(0, 1fr); gap: .8rem; padding: .6rem 0; border-top: 1px solid var(--rule); font-size: .94rem; line-height: 1.45; }
+ul.parts li b { font-family: var(--display); font-weight: 600; font-size: 1.05rem; text-transform: uppercase; line-height: 1.2; }
+ul.parts li small { display: block; font-family: var(--mono); font-size: .7rem; color: var(--muted); margin-top: .25rem; }
+table.lift { width: 100%; border-collapse: collapse; font-size: .92rem; }
+table.lift td { padding: .45rem 0; border-top: 1px solid var(--rule); vertical-align: top; }
+table.lift td:last-child { text-align: right; font-family: var(--mono); font-size: .8rem; white-space: nowrap; padding-left: .6rem; }
+table.lift td small { display: block; color: var(--muted); font-size: .8rem; }
+details.card > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: .7rem; }
+details.card > summary::-webkit-details-marker { display: none; }
+details.card > summary::after { content: "+"; font-family: var(--display); font-size: 1.5rem; color: var(--muted); line-height: 1; flex: none; }
+details.card[open] > summary::after { content: "–"; }
+details.more > summary { cursor: pointer; color: var(--muted); font-size: .88rem; text-decoration: underline; text-underline-offset: 2px; list-style: none; }
+details.more > summary::-webkit-details-marker { display: none; }
+details.more[open] > summary { margin-bottom: .5rem; }
+.dow { font-family: var(--display); font-weight: 700; font-size: 1.4rem; text-transform: uppercase; width: 3rem; flex: none; line-height: 1; }
+.dow small { display: block; font-family: var(--mono); font-size: .62rem; font-weight: 500; color: var(--muted); margin-top: .15rem; }
+.sum-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .1rem; }
+.sum-main b { font-weight: 600; }
+
+/* Controls */
+input, select, textarea { font: inherit; color: var(--ink); background: var(--raised); border: 1px solid var(--rule); border-radius: .5rem; padding: .45rem .6rem; width: 100%; min-height: 2.6rem; }
+textarea { resize: vertical; min-height: 4rem; }
+label.f { display: flex; flex-direction: column; gap: .2rem; font-size: .82rem; color: var(--muted); min-width: 0; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: .8rem; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: .55rem; overflow: hidden; background: var(--raised); max-width: 100%; flex-wrap: wrap; }
+.seg button { font-size: .88rem; border: 0; background: transparent; padding: .35rem .7rem; min-height: 2.4rem; min-width: 2.4rem; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--rule); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.seg.status button[aria-pressed="true"][data-v="s"] { background: var(--good); color: var(--on-accent); }
+.seg.status button[aria-pressed="true"][data-v="t"] { background: var(--accent); color: var(--on-accent); }
+.scale { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 3px; }
+.scale button { border: 1px solid var(--rule); background: var(--raised); border-radius: .4rem; min-height: 2.5rem; cursor: pointer; font-family: var(--mono); font-size: .85rem; padding: 0; }
+.scale button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.scale.hot button[aria-pressed="true"].hi { background: var(--bad); border-color: var(--bad); color: var(--on-accent); }
+.step { display: inline-grid; grid-template-columns: 2.5rem minmax(2.6rem, auto) 2.5rem; align-items: center; border: 1px solid var(--rule); border-radius: .55rem; background: var(--raised); overflow: hidden; }
+.step button { border: 0; background: transparent; min-height: 2.5rem; font-size: 1.2rem; cursor: pointer; }
+.step b { text-align: center; font-family: var(--mono); font-weight: 500; font-variant-numeric: tabular-nums; padding: 0 .3rem; }
+.chips { display: flex; flex-wrap: wrap; gap: .35rem; }
+.chip { border: 1px solid var(--rule); background: var(--raised); border-radius: 999px; padding: .3rem .7rem; font-size: .84rem; cursor: pointer; min-height: 2.1rem; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.chip i { display: inline-block; width: .7rem; height: .7rem; border-radius: 50%; margin-right: .35rem; vertical-align: -1px; }
+
+/* Logger */
+.exo { background: var(--surface); border: 1px solid var(--rule); border-radius: .7rem; padding: .9rem 1rem; display: flex; flex-direction: column; gap: .65rem; }
+.exo.full { border-left: 4px solid var(--good); }
+.exo-head { display: flex; justify-content: space-between; align-items: baseline; gap: .8rem; }
+.exo-head h3 { font-size: 1.25rem; }
+.exo-head .mono { color: var(--muted); text-align: right; flex: none; }
+.sets { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; }
+.sets input { width: 3.2rem; text-align: center; font-family: var(--mono); padding: .4rem .2rem; }
+.sets input.w { width: 4.6rem; }
+.sets .x { color: var(--muted); font-family: var(--mono); }
+.last { font-size: .84rem; color: var(--muted); }
+.prob { display: grid; grid-template-columns: minmax(0, 1fr) 4.6rem; gap: .5rem; padding: .7rem 0; border-top: 1px solid var(--rule); }
+.prob .ctl { grid-column: 1 / -1; display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
+.sent-t { border: 1.5px solid var(--rule); background: var(--raised); border-radius: .55rem; min-height: 2.5rem; padding: 0 .8rem; cursor: pointer; font-weight: 600; font-size: .88rem; }
+.sent-t[aria-pressed="true"] { background: var(--good); border-color: var(--good); color: var(--on-accent); }
+.savebar { position: fixed; left: 0; right: 0; bottom: var(--tabs-h); z-index: 15; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(6px); border-top: 1px solid var(--rule); }
+.savebar-in { max-width: 44rem; margin: 0 auto; padding: .6rem 1rem; display: flex; gap: .6rem; align-items: center; }
+.clock { font-family: var(--mono); font-size: 1.05rem; font-variant-numeric: tabular-nums; min-width: 4.2rem; }
+.rest { position: fixed; right: 1rem; bottom: calc(var(--tabs-h) + 4.4rem); z-index: 16; background: var(--ink); color: var(--bg); border: 0; border-radius: 999px; padding: .5rem 1rem .5rem .55rem; display: flex; align-items: center; gap: .6rem; cursor: pointer; box-shadow: 0 6px 18px rgba(0, 0, 0, .25); }
+.rest svg { width: 2.4rem; height: 2.4rem; transform: rotate(-90deg); }
+.rest circle { fill: none; stroke-width: 4; }
+.rest .trk { stroke: color-mix(in srgb, var(--bg) 25%, transparent); }
+.rest .arc { stroke: var(--bg); stroke-linecap: round; transition: stroke-dashoffset .25s linear; }
+.rest b { font-family: var(--mono); font-size: 1.15rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+.rest small { display: block; font-size: .66rem; opacity: .75; }
+.rest.done { background: var(--good); color: var(--on-accent); animation: pulse .7s ease-in-out 4; }
+@keyframes pulse { 50% { transform: scale(1.07); } }
+.toast { position: fixed; left: 50%; bottom: calc(var(--tabs-h) + 1rem); transform: translateX(-50%); z-index: 30; background: var(--ink); color: var(--bg); padding: .6rem 1rem; border-radius: .6rem; font-size: .92rem; box-shadow: 0 6px 18px rgba(0, 0, 0, .25); max-width: calc(100% - 2rem); }
+
+/* Check-in */
+.ci { display: grid; grid-template-columns: 5.4rem minmax(0, 1fr); gap: .5rem .8rem; align-items: center; }
+.ci > span { font-size: .88rem; color: var(--muted); }
+.ci-sum { display: grid; grid-template-columns: repeat(4, 1fr); gap: .4rem; }
+.ci-sum div { display: flex; flex-direction: column; }
+.ci-sum b { font-family: var(--display); font-size: 1.7rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.ci-sum span { font-size: .72rem; color: var(--muted); }
+
+/* Tiles and charts */
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; }
+.tile { background: var(--surface); border: 1px solid var(--rule); border-radius: .6rem; padding: .7rem .8rem; display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
+.tile b { font-family: var(--display); font-size: 2rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.tile b small { font-size: 1.05rem; color: var(--muted); font-weight: 600; }
+.tile span { font-size: .76rem; color: var(--muted); line-height: 1.3; }
+.chart { position: relative; height: 9.5rem; display: grid; gap: 2px; align-items: end; border-bottom: 1px solid var(--muted); margin-left: 1.9rem; }
+.chart .gl { position: absolute; left: -1.9rem; right: 0; border-top: 1px solid var(--rule); pointer-events: none; }
+.chart .gl span { position: absolute; left: 0; top: -.55rem; font-family: var(--mono); font-size: .64rem; color: var(--muted); background: var(--surface); padding-right: .2rem; }
+.col { position: relative; height: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 2px; z-index: 1; }
+.col i { display: block; width: 42%; max-width: 1.1rem; border-radius: 4px 4px 0 0; min-height: 0; }
+.col.one i { width: 62%; max-width: 1.6rem; }
+.col i.a { background: var(--s1); }
+.col i.b { background: var(--s2); }
+.col.cur::after { content: ""; position: absolute; inset: 0 -1px; background: color-mix(in srgb, var(--ink) 7%, transparent); border-radius: 4px 4px 0 0; z-index: -1; }
+.col:hover i, .col:focus i { filter: brightness(1.15); }
+.xlab { display: grid; gap: 2px; margin-left: 1.9rem; font-family: var(--mono); font-size: .64rem; color: var(--muted); text-align: center; padding-top: .25rem; }
+.xlab .cur { color: var(--ink); font-weight: 500; }
+.legend { display: flex; gap: 1rem; flex-wrap: wrap; font-size: .8rem; color: var(--muted); }
+.legend i { display: inline-block; width: .7rem; height: .7rem; border-radius: 2px; margin-right: .35rem; vertical-align: -1px; }
+.minis { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: .5rem; }
+.mini { background: var(--surface); border: 1px solid var(--rule); border-radius: .6rem; padding: .7rem .8rem; display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
+.mini .t { font-size: .8rem; color: var(--muted); line-height: 1.25; min-height: 2em; }
+.mini .v { font-family: var(--display); font-weight: 700; font-size: 1.8rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.mini .v small { font-family: var(--body); font-size: .74rem; font-weight: 400; color: var(--muted); margin-left: .3rem; }
+.mini .d { font-family: var(--mono); font-size: .7rem; color: var(--muted); }
+.mini .d.up { color: var(--good); }
+.spark { position: relative; height: 2.6rem; margin: .2rem .3rem; }
+.spark svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.spark path { fill: none; stroke: var(--s1); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
+.spark path.area { fill: var(--s1); opacity: .1; stroke: none; }
+.spark .pt { position: absolute; width: .55rem; height: .55rem; margin: -.275rem; border-radius: 50%; background: var(--s1); border: 2px solid var(--surface); box-sizing: content-box; }
+.spark .pt.end { width: .7rem; height: .7rem; margin: -.35rem; }
+.spark .pt::after { content: ""; position: absolute; inset: -.6rem; }
+.pyr { display: grid; grid-template-columns: 2.4rem minmax(0, 1fr) 4.6rem; gap: .35rem .6rem; align-items: center; font-size: .86rem; }
+.pyr .g { font-family: var(--display); font-weight: 700; font-size: 1.15rem; }
+.pyr .bar { display: flex; gap: 2px; height: 1.05rem; }
+.pyr .bar i { display: block; height: 100%; border-radius: 0 4px 4px 0; background: var(--s1); }
+.pyr .bar i.pj { background: repeating-linear-gradient(135deg, var(--s1) 0 2px, transparent 2px 5px); border: 1px solid var(--s1); }
+.pyr .n { font-family: var(--mono); font-size: .74rem; color: var(--muted); text-align: right; }
+table.tests { width: 100%; border-collapse: collapse; font-size: .9rem; }
+table.tests th { font-family: var(--mono); font-size: .68rem; font-weight: 500; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); text-align: left; padding: .3rem .2rem; }
+table.tests td { border-top: 1px solid var(--rule); padding: .3rem .2rem; }
+table.tests input { min-height: 2.2rem; padding: .25rem .4rem; font-family: var(--mono); font-size: .85rem; width: 100%; min-width: 3rem; }
+.scrollx { overflow-x: auto; }
+#tip { position: fixed; z-index: 40; pointer-events: none; background: var(--ink); color: var(--bg); font-size: .8rem; padding: .35rem .55rem; border-radius: .4rem; max-width: 16rem; line-height: 1.35; white-space: pre-line; }
+
+/* Log */
+.entry { background: var(--surface); border: 1px solid var(--rule); border-radius: .7rem; }
+.entry > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 3.3rem minmax(0, 1fr) auto; gap: .7rem; padding: .75rem 1rem; align-items: center; }
+.entry > summary::-webkit-details-marker { display: none; }
+.entry .d { font-family: var(--display); font-weight: 700; font-size: 1.2rem; text-transform: uppercase; line-height: 1; }
+.entry .d small { display: block; font-family: var(--mono); font-size: .62rem; font-weight: 500; color: var(--muted); margin-top: .2rem; }
+.entry .body { padding: 0 1rem 1rem; display: flex; flex-direction: column; gap: .6rem; font-size: .92rem; }
+.entry p.note { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); }
+.kv { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .2rem .8rem; }
+.kv > div { display: contents; }
+.kv span { border-top: 1px solid var(--rule); padding: .35rem 0; }
+.kv span:nth-child(2) { font-family: var(--mono); font-size: .82rem; text-align: right; white-space: nowrap; }
+.kv small { display: block; color: var(--muted); font-size: .8rem; white-space: pre-wrap; }
+.wk-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; padding-top: .4rem; }
+
+/* Areas */
+.acard { text-decoration: none; color: var(--ink); }
+.acard:hover { border-color: var(--accent); }
+.acard h3 { font-size: 1.45rem; }
+.bars { display: flex; flex-direction: column; gap: .55rem; }
+.bar { display: grid; grid-template-columns: 9rem minmax(0, 1fr) 3.4rem; gap: .7rem; align-items: center; font-size: .9rem; }
+.track { height: .55rem; background: var(--rule); border-radius: 3px; overflow: hidden; }
+.track i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+.bar .val { font-family: var(--mono); font-size: .78rem; text-align: right; font-variant-numeric: tabular-nums; }
+.pips { display: flex; gap: 3px; }
+.pips i { width: 1.4rem; height: .55rem; border-radius: 2px; background: var(--rule); }
+.pips i.on { background: var(--accent); }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); column-gap: 1.5rem; }
+.fact { padding: .55rem 0; border-top: 1px solid var(--rule); display: flex; flex-direction: column; gap: .1rem; font-size: .92rem; }
+.fact b { font-weight: 600; }
+.check { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .75rem; align-items: start; padding: .6rem 0; border-top: 1px solid var(--rule); cursor: pointer; }
+.check input { width: 1.35rem; height: 1.35rem; min-height: 0; margin: .15rem 0 0; accent-color: var(--accent); }
+.check.on b { text-decoration: line-through; color: var(--muted); }
+.cams { display: grid; grid-template-columns: repeat(auto-fit, minmax(4rem, 1fr)); gap: .4rem; }
+.cam { display: flex; flex-direction: column; align-items: center; gap: .2rem; padding: .5rem .2rem; border: 1px solid var(--rule); border-radius: .5rem; text-align: center; }
+.cam i { width: 1.3rem; height: 1.3rem; border-radius: 50%; border: 2px solid rgba(128, 128, 128, .4); }
+.cam b { font-family: var(--display); font-size: 1.25rem; }
+.cam span { font-size: .7rem; color: var(--muted); line-height: 1.2; }
+.band h3 { font-size: 1.5rem; padding: .9rem 0 .3rem; border-bottom: 2px solid var(--ink); display: flex; gap: .7rem; align-items: baseline; }
+.band h3 small { font-family: var(--mono); font-size: .74rem; font-weight: 500; color: var(--muted); text-transform: none; }
+.route { display: grid; grid-template-columns: 3.4rem minmax(0, 1fr) auto; gap: .7rem; align-items: center; padding: .55rem 0; border-bottom: 1px solid var(--rule); }
+.route .g { font-family: var(--display); font-weight: 700; font-size: 1.35rem; color: var(--accent); font-variant-numeric: tabular-nums; }
+.route .n { display: flex; flex-direction: column; min-width: 0; }
+.route .n b { font-weight: 600; line-height: 1.25; }
+.route .n span { font-size: .8rem; color: var(--muted); line-height: 1.35; }
+.route .n em { font-family: var(--mono); font-style: normal; font-size: .72rem; color: var(--accent); }
+
+@media (min-width: 52rem) {
+  .tabs { position: sticky; top: 3rem; bottom: auto; border-top: 0; border-bottom: 1px solid var(--rule); }
+  .tabs-in { height: 3rem; }
+  .tabs a { flex-direction: row; gap: .45rem; font-size: .9rem; }
+  .tabs a svg { width: 1.15rem; height: 1.15rem; }
+  .tabs a[aria-current="page"]::before { top: auto; bottom: -1px; border-radius: 3px 3px 0 0; }
+  :root { --tabs-h: 0rem; }
+  .wrap { padding-bottom: 7rem; }
+}
+@media (max-width: 30rem) {
+  .bar { grid-template-columns: 6.6rem minmax(0, 1fr) 3rem; font-size: .84rem; }
+  .route { grid-template-columns: 3rem minmax(0, 1fr); }
+  .route .seg { grid-column: 2; justify-self: start; }
+  .day span { display: none; }
+  .day { min-height: 3.3rem; }
+  ul.parts li { grid-template-columns: 1fr; gap: .15rem; }
+  .tile b { font-size: 1.7rem; }
+  .bolt-labels { font-size: .56rem; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <a class="brand" href="#home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20l6-11 3 5 3-8 6 14"/></svg>Approach</a>
+    <a class="ctx" id="ctx" href="#account" style="color:inherit">Data</a>
+  </div>
+</header>
+<nav class="tabs" aria-label="Sections"><div class="tabs-in" id="tabs">
+  <a href="#home" data-v="home"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3"/></svg>Today</a>
+  <a href="#plan" data-v="plan"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Plan</a>
+  <a href="#log" data-v="log"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12"/><path d="M3.5 6l.8.8L6 5.2M3.5 12l.8.8L6 11.2M3.5 18l.8.8L6 17.2"/></svg>Log</a>
+  <a href="#progress" data-v="progress"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4M4 20h16"/><path d="M7.5 15l4-4.5 3 2.5 5-6"/></svg>Progress</a>
+  <a href="#areas" data-v="areas"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 19.5l6.5-11 3.5 5.5 2.5-4 6.5 9.5z"/></svg>Areas</a>
+</div></nav>
+<main class="wrap" id="app"></main>
+<button type="button" class="rest" id="rest" data-act="rest-stop" hidden></button>
+<div class="toast" id="toast" role="status" hidden></div>
+<div id="tip" hidden></div>
+<script src="config.js"></script>
+<script>
+(function () {
+  'use strict';
+  var URL = { gear: 'https://claude.ai/artifact/BA7qVxA4KDh4b6AWGLnwM3', strength: 'https://claude.ai/artifact/EQgtmvRXnj1HB19Q4zLqHH', kilter: 'https://claude.ai/artifact/7axgeKW4cwXZvauVXNsi6Q', camp: 'https://claude.ai/artifact/JqafmBEjxxkAmyvCRUAQRE' };
+  var CAM_COLOR = { '.3': '#2F6DB5', '.4': '#8A8F94', '.5': '#6B4C9A', '.75': '#3E8E4F', '1': '#C8352B', '2': '#D9A520', '3': '#2F6DB5', '4': '#B9BDC2' };
+  var DIMS = [['end', 'Steep endurance'], ['fing', 'Finger strength'], ['pow', 'Power'], ['crack', 'Crack technique'], ['foot', 'Footwork'], ['multi', 'Long-day stamina']];
+  var DIM_LABEL = {}; DIMS.forEach(function (d) { DIM_LABEL[d[0]] = d[1]; });
+
+  // s = [steep endurance, fingers, power, crack, footwork, long-day stamina], each 1 to 5
+  var AREAS = [
+    { id: 'rrg', name: 'Red River Gorge', short: 'The Red', st: 'Kentucky', rock: 'Corbin sandstone', s: [5, 3, 3, 2, 2, 1],
+      style: 'Steep sport on pocketed sandstone, with trad lines in the Northern Gorge. Routes are long and overhanging, so pump decides most sends.' },
+    { id: 'nrg', name: 'New River Gorge', short: 'The New', st: 'West Virginia', rock: 'Nuttall sandstone', s: [3, 5, 4, 3, 5, 1],
+      style: 'Sport and trad on hard, fine-grained sandstone. Small edges, long reaches between them, precise feet and bouldery cruxes.' },
+    { id: 'ic', name: 'Indian Creek', short: 'The Creek', st: 'Utah', rock: 'Wingate sandstone', s: [4, 2, 2, 5, 2, 1],
+      style: 'Parallel-sided splitters. One crack size for a whole pitch, so jamming technique and size-specific endurance matter more than finger strength.' },
+    { id: 'blackcanyon', name: 'Black Canyon', st: 'Colorado', rock: 'Gneiss and pegmatite', s: [3, 3, 2, 4, 4, 5], style: 'Long, committing multi-pitch trad with route finding and big days.' },
+    { id: 'cityofrocks', name: 'City of Rocks', st: 'Idaho', rock: 'Granite', s: [2, 4, 2, 3, 5, 2], style: 'Technical granite faces on edges and patina plates, plus short cracks.' },
+    { id: 'devilstower', name: 'Devils Tower', st: 'Wyoming', rock: 'Phonolite columns', s: [4, 2, 2, 5, 4, 4], style: 'Sustained cracks and stemming between columns, pitch after pitch.' },
+    { id: 'eldorado', name: 'Eldorado Canyon', st: 'Colorado', rock: 'Fountain sandstone', s: [2, 4, 3, 2, 5, 4], style: 'Steep, technical multi-pitch face climbing on edges with thoughtful gear.' },
+    { id: 'gunks', name: 'The Gunks', st: 'New York', rock: 'Quartz conglomerate', s: [3, 3, 4, 1, 3, 3], style: 'Horizontal breaks and big roofs. Powerful pulls on good holds.' },
+    { id: 'horseshoe', name: 'Horseshoe Canyon Ranch', st: 'Arkansas', rock: 'Sandstone', s: [3, 3, 3, 1, 3, 1], style: 'Friendly sport climbing across every angle on featured sandstone.' },
+    { id: 'joshuatree', name: 'Joshua Tree', st: 'California', rock: 'Quartz monzonite', s: [1, 3, 3, 4, 5, 1], style: 'Short, stiff cracks and friction slabs on coarse rock. Footwork and trust.' },
+    { id: 'maple', name: 'Maple Canyon', st: 'Utah', rock: 'Cobble conglomerate', s: [5, 2, 3, 1, 2, 1], style: 'Steep cobble pulling. Big holds, big pump.' },
+    { id: 'owens', name: 'Owens River Gorge', st: 'California', rock: 'Volcanic tuff', s: [3, 4, 3, 1, 4, 1], style: 'Long, vertical sport routes on edges and pockets.' },
+    { id: 'redrock', name: 'Red Rock', st: 'Nevada', rock: 'Aztec sandstone', s: [3, 3, 2, 3, 4, 5], style: 'Long moderate multi-pitch on varnished edges and cracks, plus sport crags.' },
+    { id: 'rifle', name: 'Rifle', st: 'Colorado', rock: 'Limestone', s: [5, 3, 4, 1, 3, 1], style: 'Steep, blocky limestone with kneebars and sustained power endurance.' },
+    { id: 'seneca', name: 'Seneca Rocks', st: 'West Virginia', rock: 'Tuscarora quartzite', s: [2, 3, 2, 3, 4, 4], style: 'Exposed multi-pitch trad on vertical fins. Old-school grades.' },
+    { id: 'shelf', name: 'Shelf Road', st: 'Colorado', rock: 'Limestone', s: [2, 5, 3, 1, 4, 1], style: 'Vertical limestone on small pockets and sharp edges.' },
+    { id: 'smith', name: 'Smith Rock', st: 'Oregon', rock: 'Welded tuff', s: [2, 5, 3, 2, 5, 2], style: 'Thin, technical face climbing on nubbins and tiny edges.' },
+    { id: 'tensleep', name: 'Ten Sleep', st: 'Wyoming', rock: 'Bighorn dolomite', s: [3, 5, 3, 1, 4, 1], style: 'Vertical to gently overhanging pockets and crimps.' },
+    { id: 'tuolumne', name: 'Tuolumne Meadows', st: 'California', rock: 'Granite', s: [1, 3, 1, 2, 5, 4], style: 'Runout knob and friction climbing on domes at altitude.' },
+    { id: 'vedauwoo', name: 'Vedauwoo', st: 'Wyoming', rock: 'Sherman granite', s: [2, 1, 2, 5, 3, 1], style: 'Wide cracks and offwidths on rough, coarse granite.' },
+    { id: 'yosemite', name: 'Yosemite Valley', st: 'California', rock: 'Granite', s: [3, 3, 2, 5, 4, 5], style: 'Granite cracks of every size and long routes. Jamming plus all-day stamina.' },
+    { id: 'zion', name: 'Zion', st: 'Utah', rock: 'Navajo sandstone', s: [4, 2, 2, 5, 3, 5], style: 'Long sandstone crack systems on big walls.' }
+  ];
+  var AREA = {}; AREAS.forEach(function (a) { AREA[a.id] = a; });
+
+  var DETAIL = {
+    rrg: {
+      board: 'https://claude.ai/artifact/Dy4yM6rPuARYGf6TjhPVcU',
+      rackNote: 'Trad days only. Sport days need no cams.',
+      carry: [['.3', '1'], ['.4', '1'], ['.5', '1–2'], ['.75', '1–2'], ['1', '2'], ['2', '2'], ['3', '1–2'], ['4', 'If needed']],
+      todo: [
+        ['RRGCC waiver', 'Required at PMRP, Miller Fork and Bald Rock. Sign it online before your first day.', 'Waiver'],
+        ['Motherlode waiver', 'A second waiver for the Motherlode and the Chocolate Factory, which are private land. Dawn to dusk only.', 'Waiver'],
+        ['Muir Valley release + $15', 'Every climber signs the release at muirvalley.org/waiver. Parking is $15 per car per day.', 'Waiver'],
+        ['Guidebooks', 'THE RED, 2nd ed. (2022) covers the sport crags. Red River Gorge Trad (2026) covers the gear lines.', 'Buy'],
+        ['Stick clip', 'Many first bolts call for one. Pottsville Escarpment at Drive-By is one of them.', 'Confirm'],
+        ['Helmet', 'Newer crags still shed holds. Cliffview asks both climber and belayer to wear one.', 'Confirm'],
+        ['4WD, or walk the hill', 'The Lode hill and the Miller Fork road want 4WD and clearance. In 2WD, park at the top and walk.', 'Confirm'],
+        ['Roadside permit', 'Graining Fork (Roadside) needs a daily permit for each climber. No permit, climb elsewhere.', 'Optional'],
+        ['Kneepad', 'Knee bars are part of the steep pocket climbing, like Military Wall’s overhanging classics.', 'Optional'],
+        ['Small tricams', 'Bite in shallow pockets and horizontals. The suggested gear for Motha at Roadside.', 'Optional']
+      ],
+      know: [
+        'Lower off sport routes. Overhangs make rappelling and cleaning hard.',
+        'Steel permadraws are common on the steep southern routes. They aren’t allowed in the Northern Gorge, so hang your own there.',
+        'Never leave aluminum draws on a route. Sandy rock wears them sharp enough to cut a rope.',
+        'Many anchors have Mussy hooks. If you’re top-roping or working a route, rig your own gear.',
+        'Bring 15+ draws. Boltergeist at Muir is 95 ft with 13 bolts to the chains.',
+        'Motherlode routes run up to 40 m. That’s what the 80 m rope is for.',
+        'Many trad grades are old school. Expect them to feel stiff.'
+      ],
+      camp: [
+        ['Miguel’s Pizza', 'The climbers’ hub. Open-field camping for about $3 per person a night; register at the gear shop. Crowded and noisy in peak season.'],
+        ['Lago Linda’s', 'Quieter car camping, about $6 per person a night, with free hot showers. About 10 minutes from PMRP and Bald Rock.'],
+        ['Forest Service sites', 'Koomer Ridge is the developed campground (54 tent sites). Tunnel Ridge Road has primitive sites at least 300 ft from the road.'],
+        ['Overnight pass', 'Any car parked overnight in the Gorge (10 pm to 6 am) needs a pass: $5 a night, $7 for 3 nights. Sold at the Shell in Slade.'],
+        ['Not at the crags', 'No overnight parking and no open fires on RRGCC land. Muir bans hammocks and dogs.'],
+        ['Bears', 'Keep food and trash locked in the car overnight.'],
+        ['Groceries', 'Kroger in Stanton has the best selection nearby. Lexington is about an hour away.']
+      ],
+      routes: [
+        ['5.6', 'Bedtime for Bonzo', 'Northern Gorge · Fortress Wall', 'T', '2 pitches'], ['5.7', 'Party Time', 'Northern Gorge · Fortress Wall', 'T', '2 pitches'],
+        ['5.7', 'Roadside Attraction', 'Natural Bridge · Roadside Crag', 'T', '2 pitches · permit required'], ['5.7', 'Shock and Awe', 'Muir Valley · Hideout', 'T'],
+        ['5.8', 'Whiteout', 'Natural Bridge · Emerald City', 'T', '2 pitches'], ['5.8', 'Cheaper Than a Movie', 'PMRP · Chica Bonita Wall', 'T'],
+        ['5.8', '27 Years of Climbing', 'PMRP · Gallery', 'S'], ['5.8', 'Boilerplate', 'PMRP · Crossroads', 'S', 'Rain-day route'],
+        ['5.9', 'The Underling', 'Northern Gorge · Eastern Sky Bridge Ridge', 'T'], ['5.9', 'Autumn', 'Northern Gorge · Long Wall', 'T'],
+        ['5.9', 'Little Wing', 'MFRP · Secret Garden', 'S'], ['5.9+', 'Pogue Ethics', 'Northern Gorge · Phantasia', 'S'],
+        ['5.9+', 'Crack Attack', 'Northern Gorge · Indian Creek', 'T'], ['5.9+', 'Hazel Dormouse', 'BRRP · Hazel Hollow', 'S'],
+        ['5.10a', 'Rock Wars', 'Northern Gorge · Long Wall', 'T'], ['5.10a', 'Brown Eyed Girl', 'PMRP · Chica Bonita Wall', 'S', 'Rain-day wall'],
+        ['5.10a', 'Plate Tectonics', 'Muir Valley · Tectonic Wall', 'S'], ['5.10a', 'EGBG', 'BRRP · Chocolate Factory', 'S'],
+        ['5.10a', 'Motor Booty Pimp Affair', 'PMRP · Chica Bonita Wall', 'S', 'Rain-day wall'], ['5.10a', 'Jungle Beat', 'Northern Gorge · Military Wall', 'T', '2 pitches · trad pick'],
+        ['5.10-', 'To Defy the Laws of Tradition', 'Northern Gorge · Left Flank', 'S', 'Stays dry'], ['5.10a/b', 'Boltergeist', 'Muir Valley · Hideout', 'S', '95 ft, 13 bolts'],
+        ['5.10b', 'Gettin’ Lucky in Kentucky', 'Muir Valley · Tectonic Wall', 'S'], ['5.10b', 'A Brief History of Climb', 'PMRP · Gallery', 'S'],
+        ['5.10b', 'Robotic Thumb', 'BRRP · Chocolate Factory', 'S'], ['5.10c', 'Diamond in the Rough', 'Natural Bridge · Emerald City', 'S'],
+        ['5.10c', 'Pre-emptive Strike', 'Muir Valley · Hideout', 'S'], ['5.10c', 'Banjolero', 'PMRP · Crossroads', 'S'],
+        ['5.10c', 'Juju Fruit', 'MFRP · Fruit Wall', 'S'], ['5.10c', 'Fairweather Friend', 'PMRP · Crossroads', 'S'],
+        ['5.10c/d', 'Return of Manimal', 'Muir Valley · Bruise Brothers Wall', 'S'], ['5.10c/d', 'Breakfast Burrito', 'PMRP · Drive-By Crag', 'S'],
+        ['5.10c/d', 'Loompa', 'BRRP · Chocolate Factory', 'S'], ['5.10c/d', 'Lightning Rod Arete', 'PMRP · Velo Crag', 'S'],
+        ['5.10c/d', 'Holy Grail', 'MFRP · Camelot', 'S'], ['5.10d', 'Creep Show', 'Northern Gorge · Phantasia', 'S'],
+        ['5.10d', 'Fire and Brimstone', 'PMRP · Drive-By Crag', 'S'], ['5.10d', 'K.S.B.', 'PMRP · The Shire', 'S'], ['5.10d', 'Tesseract', 'MFRP · The Portal', 'S'],
+        ['5.11a', 'Whip-Stocking', 'PMRP · Drive-By Crag', 'S'], ['5.11a', 'Super Dario', 'Northern Gorge · Eastern Sky Bridge Ridge', 'S'],
+        ['5.11a', 'Johnny B. Good', 'PMRP · Gallery', 'S'], ['5.11a', 'Toker', 'PMRP · Bob Marley', 'S'], ['5.11a', 'Air Ride Equipped', 'Muir Valley · Solarium', 'S'],
+        ['5.11a', 'Two Women Alone', 'PMRP · Bronaugh Wall', 'S'], ['5.11a', 'Bathtub Mary', 'Muir Valley · Arsenal', 'S'], ['5.11a', 'The Last Supper', 'PMRP · Gallery', 'S'],
+        ['5.11a/b', 'The Preacher’s Daughter', 'PMRP · Gallery', 'S'], ['5.11b', 'Prime Directive', 'Northern Gorge · Funk Rock City', 'S'],
+        ['5.11b', 'Yellow Brick Road', 'Natural Bridge · Emerald City', 'S'], ['5.11b', 'King Me', 'Northern Gorge · Eastern Sky Bridge Ridge', 'S'],
+        ['5.11b', 'Eye of the Needle', 'Northern Gorge · Funk Rock City', 'S'], ['5.11b', 'Amarillo Sunset', 'PMRP · North 40', 'S'],
+        ['5.11b', 'Random Precision', 'PMRP · Gallery', 'S'], ['5.11b', 'Hip to the Jive', 'BRRP · Chocolate Factory', 'S'],
+        ['5.11b', 'Fuzzy Undercling', 'Northern Gorge · Military Wall', 'S', 'Bouldery start · rain-day wall'], ['5.11c', 'No Place Like Home', 'Natural Bridge · Emerald City', 'S'],
+        ['5.11c', 'Spirit Fingers', 'PMRP · Drive-By Crag', 'S'], ['5.11c', 'Banshee', 'Muir Valley · Solarium', 'S'], ['5.11c', 'Witness the Citrus', 'MFRP · Fruit Wall', 'S'],
+        ['5.11c', 'Unsportsmanlike Conduct', 'Northern Gorge · Left Flank', 'T', 'Trad pick'], ['5.11d', 'The Return of Chris Snyder', 'Natural Bridge · Roadside Crag', 'S', 'Permit required'],
+        ['5.11d', 'Buddha Hole', 'PMRP · Solar Collector', 'S'], ['5.11d', 'Gold Rush', 'PMRP · Gallery', 'S'], ['5.11d', 'The Infidel', 'Northern Gorge · Funk Rock City', 'S'],
+        ['5.11d', 'Snozzberries', 'BRRP · Chocolate Factory', 'S'], ['5.11d', 'Starry Night', 'PMRP · Gallery', 'S'],
+        ['5.12a', 'Ro Shampo', 'Natural Bridge · Roadside Crag', 'S', 'Permit required'], ['5.12a', 'The Gift', 'Northern Gorge · Long Wall', 'S'],
+        ['5.12a', 'Check Your Grip', 'PMRP · Drive-By Crag', 'S'], ['5.12a', 'Twinkie', 'Northern Gorge · Phantasia', 'S'], ['5.12a', 'Dogleg', 'PMRP · Bob Marley', 'S'],
+        ['5.12a', 'Supafly', 'PMRP · Solar Collector', 'S'], ['5.12a', 'Break the Scene', 'PMRP · Gallery', 'S'], ['5.12a', 'Hakuna Matata', 'PMRP · Drive-By Crag', 'S'],
+        ['5.12a', 'Swedish Fish', 'BRRP · Chocolate Factory', 'S'], ['5.12-', 'Pink Feat', 'Northern Gorge · Military Wall', 'T', 'Trad pick'],
+        ['5.12a/b', 'Too Many Puppies', 'Northern Gorge · Left Flank', 'S'], ['5.12a/b', 'Super Best Friends', 'Muir Valley · Solarium', 'S'],
+        ['5.12a/b', 'Delicatessen', 'Muir Valley · Solarium', 'S'], ['5.12b', 'Tissue Tiger', 'Northern Gorge · Military Wall', 'S', 'Rain-day wall'],
+        ['5.12b', 'Gung Ho', 'Northern Gorge · Military Wall', 'S', 'Rain-day wall'], ['5.12b', 'Mercy, the Huff', 'Northern Gorge · Left Flank', 'S'],
+        ['5.12b', 'Ale-8-One', 'BRRP · Motherlode', 'S'], ['5.12b', 'Far From God', 'PMRP · Shady Grove', 'S'], ['5.12b', 'Abiyoyo', 'Muir Valley · Solarium', 'S'],
+        ['5.12b', 'Last Rites', 'MFRP · Infirmary', 'S'], ['5.12c', 'Cell Block Six', 'Muir Valley · Midnight Surf', 'S'], ['5.12c', 'Orange Juice', 'Northern Gorge · Funk Rock City', 'S'],
+        ['5.12c', 'Mosaic', 'PMRP · Gallery', 'S'], ['5.12c', 'Mirage', 'Muir Valley · Solarium', 'S']
+      ]
+    },
+    nrg: {
+      board: 'https://claude.ai/artifact/SAheGSod45jxfxjy5bcNjE',
+      rackNote: 'Pack 21 cams, carry about 12. Leave the 40 m rope and the #5 at home.',
+      carry: [['.3', '1'], ['.4', '1'], ['.5', '2'], ['.75', '2'], ['1', '2'], ['2', '2'], ['3', '1–2'], ['4', 'If needed']],
+      todo: [
+        ['Stick clip', 'Expected here. Some first bolts are about 20 ft up.', 'Buy'],
+        ['Helmet', 'Not on your gear list yet. Confirm you have one.', 'Confirm'],
+        ['Offset nuts', 'Locals swear by them for flared slots.', 'Optional'],
+        ['Pink and red tricams', 'Bite in the shallow horizontals cams dislike.', 'Optional'],
+        ['Cams below #.3', 'Many horizontals take #.1–#.5. You own one #.3 and one #.4.', 'Optional']
+      ],
+      know: [
+        'Use a stick clip on the first bolt. Some first bolts are very high.',
+        'At Endless Wall, some sport routes need a few pieces of gear. Bring a light rack on sport days there.',
+        'Lower, don’t rappel, off single-pitch anchors.',
+        'Fixed draws and permadraws are illegal in the park.',
+        'The 80 m is ideal. Much of the Kaymoor Slabs is taller than half of a 70 m rope.',
+        'Endless Wall, Bubba City and Summersville Lake are reached by ladders.'
+      ],
+      camp: [
+        ['AAC campground sites', 'Each has a 10×10 ft wooden tent platform, a picnic table and a parking spot. Make sure your tent fits the platform.'],
+        ['AAC washroom', 'Bathrooms have big sinks for dishes. Hot showers are coin-operated.'],
+        ['AAC season', 'Late March to early December. Out of season, the showers are locked.'],
+        ['Park campgrounds', 'Free, first come first served, with no drinking water and limited restrooms. 14-day limit.'],
+        ['Bear habitat', 'Keep food and trash locked in the car overnight.']
+      ],
+      routes: [
+        ['5.7', 'Hippie Dreams', 'Summersville Lake · Orange Oswald Wall', 'S', 'Classic'], ['5.7', 'Sand in My Crack', 'Kaymoor · Rico Suave Buttress', 'T'],
+        ['5.8', 'Mrs. Field’s Follies', 'Bubba City · Sandstonia', 'S', 'Classic · very high first bolt'], ['5.8', 'Fantasy', 'Endless Wall · Fantasy Area', 'T', 'Classic · 2 pitches'],
+        ['5.8', 'Zag', 'Bridge Area · Bridge Buttress', 'T'], ['5.8', 'Management Wore Masks', 'Cotton Hill · Cotton Club', 'S'],
+        ['5.9', 'New Yosemite', 'Junkyard · Junkyard Wall', 'T', 'Classic'], ['5.9', 'Fool Effect', 'Endless Wall · Kaymoor Slabs', 'S', 'Takes 13 draws'],
+        ['5.9', 'Two Bag Face', 'Fern Buttress · Workmen’s Buttress', 'T', 'Classic · R: runout'], ['5.9+', 'Four Sheets to the Wind', 'Junkyard · Junkyard Wall', 'T', 'Classic'],
+        ['5.9+', 'Chockstone', 'Bridge Area · Bridge Buttress', 'T'], ['5.9+', 'Flight of the Gumbie', 'Kaymoor · Butcher’s Branch', 'S', 'Classic'],
+        ['5.9+', 'Super Crack', 'Beauty Mountain · Thunder Buttress', 'T'],
+        ['5.10a', 'The Rico Suave Arête', 'Kaymoor · Rico Suave Buttress', 'S', 'Classic · rain-day wall'], ['5.10a', 'Black and Tan', 'Endless Wall · Fantasy Area', 'T', 'Classic'],
+        ['5.10a', 'The Entertainer', 'Junkyard · Junkyard Wall', 'T'], ['5.10a', 'Angel’s Arête', 'Bridge Area · Bridge Buttress', 'T', 'R: runout'],
+        ['5.10a', 'Orange Oswald', 'Summersville Lake · Orange Oswald Wall', 'S'], ['5.10b', 'The Decameron', 'Bubba City · Sandstonia', 'S', 'Classic'],
+        ['5.10b', 'Strike a Scowl', 'Endless Wall · Diamond Point', 'S'], ['5.10b', 'Burning Calves', 'Beauty Mountain · Burning Buttress', 'T', 'Classic'],
+        ['5.10b', 'Wham Bam Thanks for the Jam', 'Beauty Mountain · Burning Buttress', 'T'], ['5.10b', 'Party in My Mind', 'Endless Wall · Party Buttress', 'T'],
+        ['5.10b', 'Remission', 'Endless Wall · Diamond Point', 'T'], ['5.10c', 'Kinesthetica', 'Bubba City · Sandstonia', 'S'],
+        ['5.10c', 'Rapscallion’s Blues', 'Junkyard · Junkyard Wall', 'T', 'Classic'], ['5.10c', 'First Steps', 'Kaymoor · Seven Eleven Wall', 'S'],
+        ['5.10d', 'Fairtracer', 'Kaymoor · Seven Eleven Wall', 'T', 'Classic'],
+        ['5.11a', 'Legacy', 'Endless Wall · Snake Buttress', 'S', 'Classic'], ['5.11a', 'Stuck in Another Dimension', 'Junkyard · Junkyard Wall', 'T', 'Classic'],
+        ['5.11a', 'Mellifluus', 'Endless Wall · Fern Point', 'T', 'Classic'], ['5.11a', 'Raging Waters', 'Endless Wall · Diamond Point', 'T'],
+        ['5.11a', 'Handsome and Well-Hung', 'Bridge Area · Bridge Buttress', 'T'], ['5.11a', 'The Shining', 'Kaymoor · White Wall', 'T', 'Rain-day wall'],
+        ['5.11a', 'Wild Seed', 'Fern Buttress · Wild Seed Area', 'S'], ['5.11a/b', 'Satisfaction Guaranteed', 'Summersville Lake · Satisfaction Wall', 'S', 'Classic'],
+        ['5.11b', 'Discombobulated', 'Endless Wall · Snake Buttress', 'S'], ['5.11b', 'Chasin’ the Wind', 'Beauty Mountain · Middle Beauty', 'T', '2 pitches'],
+        ['5.11c', 'Leave It to Jesus', 'Endless Wall · Diamond Point', 'T', 'Classic'], ['5.11c', 'Marionette', 'Bridge Area · Bridge Buttress', 'T'],
+        ['5.11c', 'Sancho Belige', 'Kaymoor · Butcher’s Branch', 'S'], ['5.11c', 'Scenic Adult', 'Kaymoor · Seven Eleven Wall', 'S'],
+        ['5.11c', 'Aesthetica', 'Endless Wall · Fantasy Area', 'S'], ['5.11d', 'Disturbance', 'Beauty Mountain · The Cave', 'S'],
+        ['5.11d', 'Toxic Hueco', 'Lower Meadow · Toxic Hueco Area', 'S'], ['5.11d', 'Flash Point', 'Endless Wall · Flash Point Area', 'S'],
+        ['5.11d', 'Agent Orange', 'Bridge Area · Maranatha Area', 'T'],
+        ['5.12a', 'Freaky Stylee', 'Endless Wall · Party Buttress', 'S'], ['5.12a', 'Psycho Wrangler', 'Cotton Hill · Cotton Top', 'S', 'Classic'],
+        ['5.12a', 'Concertina', 'Beauty Mountain · Thunder Buttress', 'S', 'Classic'], ['5.12a', 'Team Machine', 'Bridge Area · Bridge Buttress', 'S'],
+        ['5.12a', 'Lost Souls', 'Kaymoor · Butcher’s Branch', 'S'], ['5.12a', 'Preparation H', 'Kaymoor · Rico Suave Buttress', 'S', 'Rain-day wall'],
+        ['5.12a', 'Narcissus', 'Summersville Lake · Narcissus Cave', 'S'], ['5.12a/b', 'Dining at the Altar', 'Kaymoor · White Wall', 'S', 'Rain-day wall'],
+        ['5.12a/b', 'Bullet the New Sky', 'Endless Wall · Snake Buttress', 'S'], ['5.12b', 'Thunderstruck', 'Kaymoor · White Wall', 'S', 'Classic · rain-day wall'],
+        ['5.12b', 'Jesus and Tequila', 'Endless Wall · Honeymooner’s Area', 'S'], ['5.12b', 'The Gift of Grace', 'Endless Wall · Diamond Point', 'S'],
+        ['5.12c', 'Green Envy', 'Beauty Mountain · The Cave', 'S']
+      ]
+    },
+    ic: {
+      board: 'https://claude.ai/artifact/4s28S8wCCBGWiug66sKJfC',
+      extra: [['Live Creek tick list', 'https://claude.ai/artifact/3bwdrktwsMuw31Mqtfv7ms']],
+      rackNote: 'Bring every cam you own plus the full set of nuts. A pitch often takes one size the whole way, so pool racks with your partner.',
+      carry: [['.4', 'All'], ['.5', 'All'], ['.75', 'All'], ['1', 'All'], ['2', 'All'], ['3', 'All'], ['4', 'All']],
+      know: [
+        'Wet sandstone is weak. After rain, let it dry before climbing.',
+        'Carry at least 1 gallon of water per person per day.',
+        'Crack gloves, with athletic tape as backup.',
+        'Sun hoodie, hat and sunscreen for the day; a puffy and warm layers for camp.'
+      ],
+      routes: [
+        ['5.9', 'Binou’s Crack', 'Donnelly Canyon', 'T', 'Classic'], ['5.9', 'Twin Cracks', 'Supercrack Buttress', 'T', 'Classic · .4–#4'], ['5.9+', 'Chocolate Corner', 'Donnelly Canyon', 'T', 'Classic · .4–#2'],
+        ['5.10-', 'Blue Sun', 'Way Rambo', 'T', 'Classic · #2'], ['5.10-', 'Generic Crack', 'Donnelly Canyon', 'T', 'Classic · #2–#3'], ['5.10b', 'Country', '4x4 Wall', 'T'],
+        ['5.10', '3AM Crack', 'Supercrack Buttress', 'T', 'Classic'], ['5.10', 'Incredible Hand Crack', 'Supercrack Buttress', 'T', 'Classic · #2–#3'], ['5.10', 'Jolly Rancher', 'Pistol Whipped Wall', 'T', 'Classic'],
+        ['5.10', 'Run Like Hell', 'The Wall', 'T', 'Classic'], ['5.10', 'Smell the Meat', 'Second Meat Wall', 'T', '.75–#4'], ['5.10', 'Supercrack of the Desert', 'Supercrack Buttress', 'T', 'Classic · #2–#3'],
+        ['5.10+', 'Collision Course', '4x4 Wall', 'T', '.5–#4'], ['5.10d', 'Town', '4x4 Wall', 'T'],
+        ['5.11-', '4 x 4', '4x4 Wall', 'T', 'Classic · #2–#4'], ['5.11-', 'Coyne Crack Simulator', 'Pistol Whipped Wall', 'T', 'Classic'], ['5.11-', 'Long Bandito Route', '4x4 Wall', 'T', 'Classic · #2–#4'],
+        ['5.11-', 'Pente', 'Reservoir Wall', 'T', 'Classic · .75–#2'], ['5.11-', 'Scarface', 'Scarface Wall', 'T', 'Classic · .4–#3'], ['5.11-', 'Soul Fire', 'Optimator Wall', 'T', 'Classic · #1'],
+        ['5.11a', 'Crack Attack', 'Battle of the Bulge', 'T', 'Classic · .75–#4'], ['5.11', 'Bloodsport', 'Left Rambo', 'T', '#2–#3'], ['5.11', 'Excuse Station', 'Reservoir Wall', 'T', 'Classic · #1'],
+        ['5.11', 'Incisor', 'Broken Tooth', 'T', 'Classic'], ['5.11', 'Sinestra', 'Wall: check guidebook', 'T', '#2'], ['5.11', 'Spaghetti Western', 'Pistol Whipped Wall', 'T', 'Classic'],
+        ['5.11', 'Top Sirloin', 'Second Meat Wall', 'T', 'Classic · #1'], ['5.11b', 'Jupiter Crack', 'Sparks Wall', 'T', 'Classic · #2–#4'], ['5.11c', 'Mad Dog', 'Cat Wall', 'T', '.5–#2'],
+        ['5.11+', '4x20', '4x4 Wall', 'T', '.3–#4'], ['5.11+', 'Annunaki', 'Optimator Wall', 'T', 'Classic · .4–#3'], ['5.11+', 'Coyne Crack', 'Supercrack Buttress', 'T', 'Classic · .5–#1'],
+        ['5.11+', 'Desert Vuarnet', 'Scarface Wall', 'T', 'Classic · .4–#2'], ['5.11+', 'Johnny Cat', 'Cat Wall', 'T', 'Classic · .5'], ['5.11+', 'King Cat', 'Cat Wall', 'T', 'Classic · #2–#3'],
+        ['5.11+', 'Monster Truck', '4x4 Wall', 'T', '#1–#4'], ['5.11+', 'Puma', 'Cat Wall', 'T', '.3–.75'], ['5.11+', 'Variety Pack', '4x4 Wall', 'T'],
+        ['5.12-', 'Wild Cat', 'Cat Wall', 'T', '.5–.75'], ['5.12-', 'T-Bones Tonight', 'Wall: check guidebook', 'T', '#2–#3'], ['5.12a', 'Sig Sauer', 'Pistol Whipped Wall', 'T', '.3–#2'],
+        ['5.12a', 'Swedin-Ringle', 'Battle of the Bulge', 'T', 'Classic'], ['5.12', 'Bad Cat', 'Cat Wall', 'T', '.4–#2'], ['5.12', 'Super Cat of the Desert', 'Cat Wall', 'T', '.4–#4'],
+        ['5.12', 'Way Rambo', 'Way Rambo', 'T', 'Classic · .5–#1'],
+        ['5.7', 'South Six Shooter, South Face', 'South Six Shooter', 'T', 'Classic · 3 pitches · .3–#3'], ['5.9', 'Castleton, North Chimney', 'Castleton Tower', 'T', 'Multi-pitch'],
+        ['5.9+', 'Castleton, Kor-Ingalls', 'Castleton Tower', 'T', 'Classic · 4 pitches'], ['5.11-', 'Lightning Bolt Cracks', 'North Six Shooter', 'T', 'Classic · 3 pitches · .5–#4']
+      ]
+    }
+  };
+
+  /* ---------- The 13-week block ---------- */
+  var PHASES = ['', 'build', 'build', 'build', 'build', 'deload', 'build2', 'build2', 'build2', 'deload', 'peak', 'peak', 'peak', 'test'];
+  var PH = {
+    build: { l: 'Build', d: 'Limit bouldering at V4–V5, power at V2–V4, Tindeq pulls at 80%. Lifts leave 2–3 reps in reserve.' },
+    deload: { l: 'Deload', d: 'Half volume on everything: same lifts and weights with about half the sets, no limit bouldering and no Tindeq training pulls. Test, then retest your problems.' },
+    build2: { l: 'Strength', d: 'Limit bouldering one grade above your hardest send, power at V4–V5, Tindeq pulls at 85–90%. Lifts leave 2 reps in reserve.' },
+    peak: { l: 'Peak', d: 'Power endurance. Lifting drops to maintenance, the power session becomes 4x4s, Saturday becomes traverse intervals and Sunday links crack laps.' },
+    test: { l: 'Test', d: 'Climb and lift easy apart from the tests, and record every result.' },
+    off: { l: 'Open training', d: 'No block is running this week, so sessions use the Build targets.' }
+  };
+  function phaseOf(w) { return PHASES[w] || 'off'; }
+  function phKey(w) { var p = phaseOf(w); return p === 'off' ? 'build' : p; }
+
+  var WARM = 'Climbing warm-up, about 25 min: 5 min general (light cardio, band pull-aparts 2 × 15, band external rotations 2 × 10, scapular pull-ups 2 × 8), 6–8 min easy traversing, feet-on hangs at 50% and 70% (add 85% once the warm-up stops pumping you), then 3–4 board problems at V0–V2.';
+  var COOL = '3–5 min easy traversing, then reverse wrist curls 2 × 15 and finger-extensor bands 2 × 20, then stretch forearms, lats and hip flexors.';
+  var LIFTWARM = '5 min of easy cardio and band pull-aparts. Ankle work: knee-to-wall rocks 2 × 10 each side, then a heel-elevated goblet squat hold 2 × 30 s. Then 2–3 lighter ramp-up sets before the first lift.';
+
+  // [name, targets by phase, rest label, rest seconds, cue, weight label]
+  var LIFT = {
+    lift1: { t: 'Lift 1: heavy pull', short: 'Lift 1', focus: 'Full body, built around heavy pull-ups. They go first while you are fresh, since they carry over to climbing more than any other lift.', rows: [
+      ['Fast pull-up (bodyweight)', { peak: '3 × 3, as fast as possible' }, '2–3 min', 150, 'Explosive on the way up, controlled on the way down. These prime the weighted sets.', ''],
+      ['Pull-up', { build: '4 × 6–8', deload: '2 × 6–8', build2: '5 × 4–6', deload9: '3 × 4–6', peak: '3 × 4–6 at your week 8 weight', test: 'Test: max bodyweight reps, then work up to a 3-rep max' }, '2–3 min', 150, 'Full hang at the bottom, chest toward the bar, no kipping. Add weight once every set hits the top of the range.', 'lb added'],
+      ['Seated dumbbell shoulder press', { build: '3 × 8–10', deload: '2 × 8–10', build2: '3 × 6–8', deload9: '2 × 6–8', peak: '2 × 6–8 at your week 8 weight' }, '90 s–2 min', 105, 'Press with your palms facing each other if a shoulder pinches.', 'lb per hand'],
+      ['High-box step-up', { build: '3 × 8 each leg', deload: '2 × 8 each leg', build2: '3 × 6–8 each leg', deload9: '2 × 6–8 each leg', peak: '2 × 6–8 each leg at your week 8 weight' }, '90 s–2 min', 105, 'Box around knee height. Drive through the whole foot on the box and do not push off the bottom foot. It builds the strength a high step asks for.', 'lb per hand'],
+      ['Barbell row', { build: '3 × 10–12', deload: '2 × 10–12', build2: '3 × 8–10', deload9: '2 × 8–10', peak: '2 × 8–10 at your week 8 weight' }, '90 s–2 min', 105, 'Hinge to about 45° with a flat back and pull the bar to your lower ribs. Straps are fine if grip is tired.', 'lb'],
+      ['Hanging knee raise', { build: '3 × 10–12', deload: '2 × 10–12' }, '45–75 s', 60, 'No swinging. Pause at the top and lower slowly.', ''],
+      ['Toes-to-bar', { build2: '3 × 6–8', deload9: '2 × 6–8', peak: '2 × 8–10' }, '45–75 s', 60, 'Trains the body tension that keeps your feet on steep terrain. Lying leg raises if your grip is cooked.', ''],
+      ['Cable external rotation', { build: '2 × 12–15 each arm', deload: '1 × 12–15 each arm', build2: '2 × 12–15 each arm', deload9: '1 × 12–15 each arm', peak: '2 × 12–15 each arm' }, '45–60 s', 50, 'Elbow pinned to your side, rotate out slowly. Rotator cuff work that keeps shoulders healthy under heavier pulling.', 'lb']
+    ] },
+    lift3: { t: 'Lift 3: heavy legs and push', short: 'Lift 3', focus: 'Heavy lower-body and pressing work first. It follows your hardest finger day, so the only pulling is a few easy pull-ups.', rows: [
+      ['Romanian deadlift', { build: '3 × 8–10', deload: '2 × 8–10', build2: '4 × 6–8', deload9: '2 × 6–8', peak: '3 × 6–8 at your week 8 weight', test: 'Test: work up to a 5-rep max' }, '2–3 min', 150, 'Hips back first, then hinge until you feel the hamstring stretch. Weights close to your legs, back flat. Use straps: grip is not the point here.', 'lb per hand'],
+      ['Bench press', { build: '3 × 8–10', deload: '2 × 8–10', build2: '4 × 5–6', deload9: '2 × 5–6', peak: '3 × 5–6 at your week 8 weight', test: 'Test: work up to a 5-rep max' }, '2–3 min', 150, 'Before the bar, 2 × 15 band pull-aparts and 2 × 10 scap push-ups set your shoulder blades back and down.', 'lb'],
+      ['Pendulum squat', { build: '2 × 10–12', deload: '1 × 10–12', build2: '2 × 8–10', deload9: '1 × 8–10', peak: '2 × 8–10 at your week 8 weight' }, '90 s–2 min', 105, 'Lower for 3 seconds, pause for 2 at the bottom with heels flat, then stand up smoothly. Loaded mobility, not a max-effort leg day.', 'lb'],
+      ['Pull-up, bodyweight (easy)', { build: '3 × 5–8', deload: '2 × 5–8', build2: '3 × 5–8', deload9: '2 × 5–8', peak: '3 × 5–8' }, '90 s–2 min', 105, 'No added weight, and stop 3 or more reps short of failure. Lat pulldowns instead if your fingers are sore.', ''],
+      ['Rear delt fly', { build: '3 × 15', deload: '2 × 15', build2: '3 × 15', deload9: '2 × 15', peak: '2 × 15' }, '45–75 s', 60, 'Machine or dumbbells, light weight.', 'lb'],
+      ['Lateral raise', { build: '3 × 12–15', deload: '2 × 12–15', build2: '3 × 12–15', deload9: '2 × 12–15', peak: '2 × 12–15' }, '45–75 s', 60, 'Light, no swinging, lead with your elbows.', 'lb'],
+      ['Side plank', { build: '3 × 30 s each side', deload: '2 × 30 s each side', build2: '3 × 40 s each side', deload9: '2 × 40 s each side', peak: '3 × 45 s each side' }, '45–60 s', 50, 'A straight line from head to heels. Once 40 s is steady, add a top-leg raise instead of more time.', ''],
+      ['Hollow body hold', { test: 'Test: one max hold, in seconds' }, '3–4 min', 210, 'After the deadlift and bench tests.', '']
+    ] }
+  };
+  var LIFT_EFFORT = { build: 'Leave 2–3 reps in reserve on every set.', deload: 'Same weights, about half the sets.', build2: 'Leave 2 reps in reserve. No singles or max attempts.', peak: 'Maintenance: about two-thirds of the sets at your week 8 weights, 2–3 reps in reserve.', test: 'Tested lifts only. Keep anything else easy.' };
+
+  function parseTarget(t) {
+    var m = /(\d+) × (\d+)(?:–(\d+))?/.exec(t || '');
+    return m ? { sets: +m[1], lo: +m[2], hi: +(m[3] || m[2]) } : { sets: 1, lo: 0, hi: 0 };
+  }
+  function liftRows(sid, w, variant) {
+    var ph = phKey(w), out = [];
+    LIFT[sid].rows.forEach(function (r) {
+      var t = (ph === 'deload' && w === 9 && r[1].deload9) || r[1][ph];
+      if (!t) return;
+      if (sid === 'lift3' && variant === 'out') {
+        if (r[0] === 'Pull-up, bodyweight (easy)') return;
+        if (r[0] === 'Romanian deadlift') t = '2 × 8–10, no new weight';
+        if (r[0] === 'Pendulum squat') t = '1 × 10–12';
+      }
+      if (sid === 'lift3' && variant === 'tue' && r[0] === 'Pull-up, bodyweight (easy)') t = '2 × 5–8';
+      var p = parseTarget(t);
+      out.push({ n: r[0], target: t, sets: p.sets, lo: p.lo, hi: p.hi, rest: r[2], restSec: r[3], cue: r[4], wl: r[5] });
+    });
+    return out;
+  }
+
+  /* Board, endurance and crack sessions by phase. parts: [heading, text, rest label, rest seconds] */
+  var SESS = {
+    kpower: function (w) {
+      var ph = phKey(w), main, rest = ['2–3 min between tries', 180], t = 'Kilter power', short = 'Power', tags = ['pow'];
+      if (ph === 'build') main = 'Any 4–6 problems at V2–V4 that look fun and have big or committing moves. 2–3 real tries each, then move on. Stop when moves slow down.';
+      else if (ph === 'deload') main = 'Half volume: any 2–3 fun problems at ' + (w === 9 ? 'V4–V5' : 'V2–V4') + ', 1–2 tries each.';
+      else if (ph === 'build2') main = 'Any 4–6 problems at V4–V5 that look fun and have big or committing moves. 2–3 real tries each, then move on. Stop when moves slow down.';
+      else if (ph === 'peak') { main = '4x4s: any 4 problems at V1–V3 you can climb without falling. Climb the same 4 back to back each round, 4 rounds. If round 4 falls apart before the last problem, drop a grade next week; if it is all clean, add one harder problem.'; rest = ['4 min between rounds', 240]; t = 'Kilter 4x4s'; short = '4x4s'; tags = ['end', 'pow']; }
+      else main = 'Easy: 2–3 problems well below your limit.';
+      return { t: t, short: short, mins: 75, kind: 'board', tags: tags, focus: ph === 'peak' ? 'Power endurance: keep pulling hard moves while pumped.' : 'Explosive but controlled movement on the board at 40°, on problems at or below your flash level. Deadpoints and long, controlled moves beat big jumps and cuts.',
+        parts: [['Warm-up', WARM + ' Finish with 2–3 big moves on good holds at about 80%, then rest 8–10 min.'], ['Main set', main, rest[0], rest[1]], ['Cool-down', COOL]] };
+    },
+    kstrength: function (w) {
+      var ph = phKey(w), parts = [], main;
+      if ((ph === 'build' && w >= 2) || ph === 'off') parts.push(['Tindeq, the evening before', 'At home: ramp up at 50%, 70% and 85%, then 3 × 7–10 s per hand at 80% of your max on the 20 mm edge, half crimp. Skip it if your fingers feel tweaky.', '2–3 min before the same hand', 150]);
+      if (ph === 'build2') parts.push(['Tindeq, the evening before', 'At home: ramp up, then 3–5 × 7–10 s per hand at 85–90% of your latest test if your fingers are pain-free. Otherwise stay at 80%.', '2–3 min before the same hand', 150]);
+      if (ph === 'peak') parts.push(['Tindeq, the evening before', 'At home: ramp up, then 3 × 7–10 s per hand at 85–90% of your latest test.', '2–3 min before the same hand', 150]);
+      parts.push(['Warm-up', WARM + ' Then rest 8–10 min.']);
+      if (ph === 'deload') main = 'No main set. Retest your 3 retest problems, fresh.';
+      else if (ph === 'test') main = 'Retest your hardest board sends and your retest problems.';
+      else if (w === 4) main = 'Your retest set: the 3 problems you saved in week 1. 4–6 tries each, about 20–25 attempts in total.';
+      else if (w === 8) main = 'Your second retest set, saved in week 6. 4–6 tries each, about 20–25 attempts in total.';
+      else if (ph === 'build') main = '3–4 crimpy, static problems at V4–V5 that you cannot send yet. 4–6 tries each, about 20–25 attempts in total. Skip problems whose moves tweak your wrists or shoulders.';
+      else main = '3–4 problems one grade above your hardest board send. 4–6 tries each, about 20–25 attempts in total. Skip problems whose moves tweak your wrists or shoulders.';
+      parts.push(['Main set', main + (ph === 'deload' || ph === 'test' ? '' : ' Stop when two tries in a row get worse.'), '3–5 min between tries', 240]);
+      if (w === 1) parts.push(['Retest problems', 'Pick 3 V5s you cannot do yet, save them and leave them alone until week 4.']);
+      if (w === 6) parts.push(['Retest problems', 'Pick 3 new retest problems and leave them alone until week 8.']);
+      parts.push(['Cool-down', COOL]);
+      return { t: 'Kilter strength', short: 'Strength', mins: 90, kind: 'board', tags: ['fing', 'pow'], focus: 'Your main finger-strength day: limit problems with full rest on crimps and small feet, the closest the board gets to face climbing outside.', parts: parts };
+    },
+    sat: function (w, force) {
+      var ph = phKey(w), parts = [['Warm-up', 'Step 1 of the climbing warm-up, then 5–10 min of easy traversing. Finish at pump 1–2.']], laps, trav, rest = ['1–2 min between sets', 90], kind;
+      var LAPS = '4–6 rounds on the least steep wall: climb an easy problem (V0–V2), down-climb it and climb it again without stepping off, about 2–3 min on the wall. Straight arms, quiet feet, pump at 3 out of 10 or less.';
+      if (ph === 'deload' || ph === 'test' || w === 1) parts.push(['Tindeq test', 'At home before the gym: best of 3 max pulls per hand on the 20 mm edge, half crimp. Record both hands under Progress.', '2–3 min before the same hand', 150]);
+      if (ph === 'deload') { laps = 'Optional: 2–3 easy up-and-down laps.'; trav = 'Easy traverse with no real pump.'; kind = 'easy'; }
+      else if (ph === 'test') { laps = ''; trav = 'Time your longest nonstop traverse.'; kind = 'test'; }
+      else if (ph === 'peak') { laps = LAPS.replace('4–6', '3–4'); trav = 'Intervals: 1 min on harder holds, 1 min rest, for 6–8 rounds.'; rest = ['1 min between rounds', 60]; kind = 'intervals'; }
+      else {
+        laps = LAPS;
+        var endur = force ? force === 'endurance' : (w % 2 === 1 || w === 6 || w === 8) && w !== 7;
+        if (endur) { var tgt = w >= 8 ? '2 × 12 min with 3 min rest' : w >= 6 ? '3 × 8 min with 2 min rest' : '4 × 6 min with 1–2 min rest'; trav = 'Endurance: ' + tgt + ', on a planned loop with 2 rest jugs. Pump no higher than 3–4 out of 10. Cap set 1 at the target time and rate your pump for each set.'; kind = 'endurance'; rest = w >= 8 ? ['3 min between sets', 180] : w >= 6 ? ['2 min between sets', 120] : rest; }
+        else { trav = 'Technique, one drill per 4–5 min block: minimum grip, silent feet, glued feet, small feet only, side-on and frog positions, then reverse the loop. Pump 2–3.'; kind = 'technique'; rest = ['2 min between blocks', 120]; }
+      }
+      if (laps) parts.push(['Boulder laps', laps, '2–3 min between rounds', 150]);
+      parts.push(['Traverse', trav, rest[0], rest[1]]);
+      parts.push(['Cool-down', 'Stretch forearms, lats and hip flexors for 30 s each, plus 2 × 60 s frog stretch.']);
+      return { t: 'Laps and traverse', short: kind === 'technique' ? 'Technique' : kind === 'intervals' ? 'Intervals' : 'Endurance', mins: 90, kind: 'endur', tags: kind === 'technique' ? ['foot', 'end'] : ['end', 'foot'], trav: kind, focus: 'The endurance and footwork the board does not build: easy boulder laps, then the traverse.', parts: parts };
+    },
+    cracks: function (w) {
+      var ph = phKey(w), main;
+      if (ph === 'deload' || ph === 'test') main = '2–3 easy laps.';
+      else if (ph === 'peak') main = 'Link 2 laps back to back without resting, for 3–4 rounds.';
+      else main = '4–6 laps at a comfortable grade. Cover fingers, hands and fists, with extra laps on off-fingers (#.75).';
+      return { t: 'Crack mileage', short: 'Cracks', mins: 60, kind: 'crack', tags: ['crack'], focus: 'Easy crack volume, outside when you can. Yesterday was a climbing day too, so stay at comfortable grades. Skip it first if the week feels heavy.',
+        parts: [['Warm-up', 'Step 1 of the climbing warm-up, then 1–2 easy laps.'], ['Cracks', main + ' Quiet, precise jams that hold without overgripping.', '2–3 min between laps', 150], ['Cool-down', 'Stretch forearms, lats and hip flexors.']] };
+    },
+    rest: function () { return { t: 'Rest day', short: 'Rest', mins: 0, kind: 'rest', tags: [], focus: 'A full rest day, so the next hard finger session starts fresh.', parts: [['Today', 'No climbing and no lifting.'], ['This evening', 'If tomorrow is Kilter strength, do the Tindeq pulls listed under that session.'], ['Any time', 'Home stretches: forearms, lats and hip flexors, 30 s each.']] }; },
+    travel: function () { return { t: 'Travel day', short: 'Travel', mins: 0, kind: 'rest', tags: [], focus: 'Get there fresh.', parts: [['Before you leave', '10 min of mobility: half-kneeling hip flexor stretch, frog stretch, knee-to-wall ankle rocks.'], ['On the road', 'Stretch breaks on the drive, a real dinner with carbs, and water.']] }; },
+    outside: function (w, day2) { return { t: day2 ? 'Outside, day 2' : 'Outside day', short: 'Outside', mins: 300, kind: 'out', tags: [], focus: day2 ? 'Your fingers are on their second day: pick juggy, steep endurance routes over crimpy ones, at most 1–2 hard tries, and finish in time for the drive.' : 'Real rock. Warm up longer than in the gym, then climb your goal routes late morning while you are fresh.',
+      parts: [['Warm-up', 'Step 1 of the climbing warm-up, then 2–3 easy routes that build gradually. Cold rock and cold fingers are when tendons get tweaked.'], ['Hard climbing', 'Pick 1–2 goal routes and rest 20–30 min between hard tries.', '20–30 min between tries', 1200], ['When to stop', 'Switch to easy routes if a finger twinges, your skin gets thin, or two tries in a row get worse.'], ['Finish', '1–2 easy routes, then finger-extensor bands 2 × 20 and stretch.']] }; },
+    /* Area sessions */
+    k4x4: function () { var s = SESS.kpower(10); s.why = 'end'; return s; },
+    ksteep: function () { return { t: 'Steep limit bouldering', short: 'Steep limit', mins: 90, kind: 'board', tags: ['pow', 'end'], focus: 'Limit problems on the holds steep sport routes are made of: pinches, slopers and big moves between good holds.',
+      parts: [['Warm-up', WARM + ' Then rest 8–10 min.'], ['Main set', '3–4 problems you cannot send yet at 40°. Choose pinches, slopers and long pulls between jugs over tiny crimps. 4–6 attempts per problem. If the gym has set pockets, add 2 pocket problems below your limit, open-handed.', '3–5 min between tries', 240], ['Finisher', 'One problem two grades down, climbed 3 times in a row with 1 min rest.', '1 min', 60], ['Cool-down', COOL]] }; },
+    crackhard: function () { return { t: 'Crack strength', short: 'Hard cracks', mins: 60, kind: 'crack', tags: ['crack'], focus: 'Short, hard efforts on your weakest crack sizes.',
+      parts: [['Warm-up', '2 easy laps on hands.'], ['Hard burns', '5–6 hard burns on your hardest size, 6–10 moves each, so every one is high quality. Then 2 burns on thin hands (#1) and 2 on cupped hands (#3).', '3–4 min between burns', 210], ['Cool-down', 'Stretch forearms, lats and hip flexors.']] }; },
+    cracklaps: function () { return { t: 'Linked crack laps', short: 'Crack laps', mins: 75, kind: 'crack', tags: ['crack', 'end'], focus: 'Size-specific endurance: stay in the crack long after it stops feeling good.',
+      parts: [['Warm-up', '1–2 easy laps.'], ['Linked laps', 'Link 2 laps back to back without resting, for 3–4 rounds. Rotate the size each round: hands, thin hands, off-fingers, cupped hands. Shake out on a jam, not a face hold.', '3–4 min between rounds', 210], ['Flush', '10 min of easy traversing.']] }; },
+    longday: function () { return { t: 'Long-day mileage', short: 'Mileage', mins: 90, kind: 'endur', tags: ['multi', 'end', 'foot'], focus: 'Stay moving for as long as a long route keeps you moving.',
+      parts: [['Warm-up', '5–10 min of easy traversing.'], ['Mileage', '6 × 10 min of continuous easy climbing: up and down V0–V2, or the traverse, without stepping off. Pump at 3 out of 10 or less. Eat and drink at the rests the way you will at belays.', '2 min between blocks', 120], ['Cool-down', 'Stretch forearms, lats and hip flexors.']] }; },
+    pump2: function () { return { t: 'Easy route simulation', short: 'Route sim', mins: 45, kind: 'endur', tags: ['end'], focus: 'A second, gentler pump session that feels like a long sport pitch.',
+      parts: [['Warm-up', '5–10 min of easy traversing.'], ['Links', 'Link 3 easy problems (V0–V2) without stepping off: up one, down the next, across to a third. 4–5 rounds, pump at 5 out of 10 or less. Pause to clip an imaginary draw every few moves.', '3 min between rounds', 180], ['Cool-down', 'Stretch forearms, lats and hip flexors.']] }; }
+  };
+  var ORDER = {
+    normal: ['lift1', 'kpower', 'rest', 'kstrength', 'lift3', 'sat', 'cracks'],
+    tue: ['lift1', 'rest', 'kstrength', 'lift3', 'kpower', 'sat', 'cracks'],
+    out: ['lift1', 'kstrength', 'rest', 'lift3', 'travel', 'outside', 'outside']
+  };
+  var KIND_LABEL = { lift: 'Lifts', board: 'Board', endur: 'Endurance', crack: 'Cracks', out: 'Outside', other: 'Other' };
+  function kindOf(sid) { return sid === 'lift1' || sid === 'lift3' || sid === 'lift2' ? 'lift' : SESS[sid] ? SESS[sid](1).kind : 'other'; }
+  /* ---------- State and storage ---------- */
+  function blank() { return { settings: null, ticks: {}, checks: {}, weeks: {}, kilter: { items: [] }, tests: { rows: {} } }; }
+  var S = blank();
+  var mode = 'loading', pending = 0, chains = {}, saveMsg = '', rev = 0, cache = {};
+  var LS_KEY = 'approach-v2';
+  var ui = { tf: { band: 'all', type: 'all', status: 'all' }, D: null, armed: null, planWeek: null, openDay: null, rest: null, sample: false, logFilter: 'all', ciEdit: false, toast: '' };
+
+  function touch() { rev++; cache = {}; }
+  function applyDocs(map) {
+    var n = blank();
+    Object.keys(map).forEach(function (id) {
+      var d = map[id]; if (!d) return;
+      if (id === 'settings') n.settings = d;
+      else if (id === 'kilter') n.kilter = { items: d.items || [] };
+      else if (id === 'tests') n.tests = { rows: d.rows || {} };
+      else if (id.indexOf('ticks_') === 0) n.ticks[id.slice(6)] = d.r || {};
+      else if (id.indexOf('checks_') === 0) n.checks[id.slice(7)] = d.c || {};
+      else if (id.indexOf('w_') === 0) n.weeks[id.slice(2)] = { s: d.s || {}, c: d.c || {}, p: d.p || {} };
+    });
+    S = n; touch();
+  }
+  function allDocs() {
+    var m = {};
+    if (S.settings) m.settings = S.settings;
+    if (S.kilter.items.length) m.kilter = S.kilter;
+    if (Object.keys(S.tests.rows).length) m.tests = S.tests;
+    Object.keys(S.ticks).forEach(function (k) { m['ticks_' + k] = { r: S.ticks[k] }; });
+    Object.keys(S.checks).forEach(function (k) { m['checks_' + k] = { c: S.checks[k] }; });
+    Object.keys(S.weeks).forEach(function (k) { m['w_' + k] = S.weeks[k]; });
+    return m;
+  }
+  /* Storage: this browser first, with optional sync to a Supabase project named in config.js. */
+  var CFG = window.APPROACH_CONFIG || {}, AUTH_KEY = 'approach-auth', sess = null;
+  function cloud() { return !!(CFG.supabaseUrl && CFG.supabaseKey); }
+  function cacheLocal() { try { localStorage.setItem(LS_KEY, JSON.stringify(allDocs())); if (mode === 'memory') mode = 'local'; } catch (e) { if (!cloud()) mode = 'memory'; } }
+  function setSess(x) { sess = x; try { if (x) localStorage.setItem(AUTH_KEY, JSON.stringify(x)); else localStorage.removeItem(AUTH_KEY); } catch (e) { /* stays in memory */ } }
+  function call(path, opt, retried) {
+    opt = opt || {};
+    var h = Object.assign({ apikey: CFG.supabaseKey, 'Content-Type': 'application/json' }, opt.headers || {});
+    if (sess && !opt.noAuth) h.Authorization = 'Bearer ' + sess.access_token;
+    return fetch(CFG.supabaseUrl.replace(/\/$/, '') + path, { method: opt.method || 'GET', headers: h, body: opt.body ? JSON.stringify(opt.body) : undefined }).then(function (r) {
+      if (r.status === 401 && sess && sess.refresh_token && !retried && !opt.noAuth) {
+        return call('/auth/v1/token?grant_type=refresh_token', { method: 'POST', noAuth: true, body: { refresh_token: sess.refresh_token } }).then(function (j) { setSess({ access_token: j.access_token, refresh_token: j.refresh_token, email: sess.email }); return call(path, opt, true); });
+      }
+      return r.text().then(function (t) { var j = t ? JSON.parse(t) : null; if (!r.ok) throw new Error((j && (j.msg || j.error_description || j.message)) || 'Request failed (' + r.status + ')'); return j; });
+    });
+  }
+  function persist(id, data) {
+    touch();
+    if (ui.sample) return;
+    cacheLocal();
+    if (!cloud() || !sess) return;
+    pending++;
+    var copy = data === null ? null : JSON.parse(JSON.stringify(data));
+    var prev = chains[id] || Promise.resolve();
+    chains[id] = prev.then(function () {
+      return copy === null ? call('/rest/v1/docs?id=eq.' + encodeURIComponent(id), { method: 'DELETE' })
+        : call('/rest/v1/docs?on_conflict=user_id,id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: { id: id, data: copy } });
+    }).catch(function () { saveMsg = 'That change is saved on this device but did not sync. Check your connection; it will be sent with your next change to the same item.'; })
+      .then(function () { pending--; if (saveMsg) render(); });
+  }
+  function saveSettings() { persist('settings', S.settings); }
+  function weekDoc(monS) { if (!S.weeks[monS]) S.weeks[monS] = { s: {}, c: {}, p: {} }; return S.weeks[monS]; }
+  function saveWeek(monS) { persist('w_' + monS, S.weeks[monS]); }
+  function pull() {
+    if (!cloud() || !sess || ui.sample) return Promise.resolve();
+    return call('/rest/v1/docs?select=id,data').then(function (rows) {
+      if (pending > 0 || ui.sample) return;
+      var m = {}; rows.forEach(function (r) { m[r.id] = r.data; });
+      var before = JSON.stringify(allDocs());
+      applyDocs(m); cacheLocal(); ui.synced = Date.now();
+      if (JSON.stringify(allDocs()) !== before) render();
+    }).catch(function (e) { if (/JWT|token|401/i.test(e.message)) { setSess(null); mode = 'signedout'; render(); } });
+  }
+  function signIn(email, pw, create) {
+    ui.authMsg = ''; ui.authBusy = true; render();
+    var p = create ? call('/auth/v1/signup', { method: 'POST', noAuth: true, body: { email: email, password: pw } }) : call('/auth/v1/token?grant_type=password', { method: 'POST', noAuth: true, body: { email: email, password: pw } });
+    p.then(function (j) {
+      ui.authBusy = false;
+      if (!j || !j.access_token) { ui.authMsg = 'Account created. Open the confirmation email, then sign in here.'; render(); return; }
+      setSess({ access_token: j.access_token, refresh_token: j.refresh_token, email: email });
+      var local = allDocs(), had = Object.keys(local).length > 0;
+      mode = 'db'; render();
+      call('/rest/v1/docs?select=id,data').then(function (rows) {
+        if (rows.length || !had) { var m = {}; rows.forEach(function (r) { m[r.id] = r.data; }); applyDocs(m); cacheLocal(); }
+        else Object.keys(local).forEach(function (id) { persist(id, local[id]); });
+        ui.synced = Date.now(); render();
+      });
+    }).catch(function (e) { ui.authBusy = false; ui.authMsg = e.message; render(); });
+  }
+  function signOut() { setSess(null); S = blank(); touch(); try { localStorage.removeItem(LS_KEY); } catch (e) { /* nothing cached */ } mode = 'signedout'; render(); }
+  function importDocs(map) {
+    var n = 0;
+    Object.keys(map).forEach(function (id) { if (/^(settings|kilter|tests|ticks_[a-z]+|checks_[a-z]+|w_\d{4}-\d{2}-\d{2})$/.test(id) && map[id] && typeof map[id] === 'object') n++; else delete map[id]; });
+    if (!n) return 0;
+    var merged = Object.assign(allDocs(), map);
+    applyDocs(merged);
+    Object.keys(map).forEach(function (id) { persist(id, map[id]); });
+    return n;
+  }
+  function init() {
+    try { var raw = localStorage.getItem(LS_KEY); if (raw) applyDocs(JSON.parse(raw)); mode = 'local'; } catch (e) { mode = 'memory'; }
+    if (cloud()) {
+      try { sess = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); } catch (e) { sess = null; }
+      mode = sess ? 'db' : 'signedout';
+      if (sess) pull();
+      document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') pull(); });
+    }
+    render();
+  }
+
+  /* ---------- Helpers ---------- */
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function pad(n) { return String(n).padStart(2, '0'); }
+  function ymd(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function parse(s) { var p = String(s).split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+  function today0() { var d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+  function addDays(d, n) { var x = new Date(d); x.setDate(x.getDate() + n); return x; }
+  function monday(d) { return addDays(d, -((d.getDay() + 6) % 7)); }
+  function monOf(s) { return ymd(monday(parse(s))); }
+  function dayDiff(a, b) { return Math.round((a - b) / 864e5); }
+  function fmt(s, o) { return parse(s).toLocaleDateString(undefined, o || { month: 'short', day: 'numeric' }); }
+  function slug(s) { return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
+  function num(v) { var n = parseFloat(v); return isFinite(n) ? n : null; }
+  function r1(n) { return Math.round(n * 10) / 10; }
+  function avg(a) { return a.length ? a.reduce(function (x, y) { return x + y; }, 0) / a.length : null; }
+  function curArea() { return S.settings && AREA[S.settings.areaId] ? AREA[S.settings.areaId] : null; }
+  function topDims(a, n) { return DIMS.map(function (d, i) { return { k: d[0], l: d[1], v: a.s[i] }; }).sort(function (x, y) { return y.v - x.v; }).slice(0, n); }
+  function dimScore(a, k) { return a.s[DIMS.findIndex(function (d) { return d[0] === k; })]; }
+  function band(g) { var m = /5\.(\d+)/.exec(g); var n = m ? Number(m[1]) : 0; return n <= 9 ? '9' : n >= 12 ? '12' : String(n); }
+  var BAND_LABEL = { '9': '5.9 and under', '10': '5.10', '11': '5.11', '12': '5.12' };
+  var DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  function restWord() { return (S.settings && S.settings.restLabel) || 'Tuesday rest'; }
+
+  /* ---------- Block and plan ---------- */
+  function blockStart() { return S.settings && S.settings.block ? S.settings.block : null; }
+  function weekNo(d) { var st = blockStart(); if (!st) return 0; return Math.floor(dayDiff(monday(d), parse(st)) / 7) + 1; }
+  function weekMon(w) { return addDays(parse(blockStart()), (w - 1) * 7); }
+  function weekType(monS) { return (S.settings && S.settings.wt && S.settings.wt[monS]) || 'normal'; }
+  function tripInfo() {
+    var st = S.settings, a = curArea();
+    if (!a) return { k: 'none' };
+    if (!st.start) return { k: 'nodate', a: a };
+    var t = today0(), s = parse(st.start), e = st.end ? parse(st.end) : s, days = dayDiff(s, t);
+    if (t > e) return { k: 'past', a: a, days: days };
+    if (days <= 0) return { k: 'on', a: a, days: days };
+    return { k: 'ahead', a: a, days: days };
+  }
+  // How specific a given week should be to the area: off far out, on from 8 weeks, taper in the last week.
+  function specificity(mon) {
+    var st = S.settings, a = curArea();
+    if (!a) return { on: false };
+    if (!st.start) return { on: true, label: 'Area sessions are on. Add trip dates and they will switch on 8 weeks out and taper in the final week.' };
+    var s = parse(st.start), e = st.end ? parse(st.end) : s, days = dayDiff(s, mon);
+    if (mon > e) return { on: false, label: 'The trip is done, so this week runs the plain block.' };
+    if (days > 56) return { on: false, label: 'The trip is ' + Math.round(days / 7) + ' weeks from this week. Build general strength for now: area sessions switch on ' + fmt(ymd(addDays(s, -56))) + ', 8 weeks out.' };
+    if (days <= 6) return { on: true, taper: true, label: 'Trip week. Half the volume, nothing to failure, and make your last hard session 4 days before you leave.' };
+    return { on: true, label: Math.ceil(days / 7) + ' weeks to the trip from this week: area sessions are on.' };
+  }
+  function areaSwap(a, sid, ph) {
+    if (ph === 'deload' || ph === 'test') return null;
+    var end = a.s[0], fing = a.s[1], crack = a.s[3], foot = a.s[4], multi = a.s[5];
+    if (sid === 'lift1') {
+      if (crack >= 4) return { add: 'Add 3 × 10–12 biceps curls and 2 × 15 reverse wrist curls. Jamming leans on both.', why: 'crack' };
+      if (end >= 4) return { add: 'Push the knee raises toward toes-to-bar. Body tension keeps your feet on steep rock.', why: 'end' };
+      if (foot >= 4 || multi >= 4) return { add: 'Raise the step-up box toward mid-thigh. It builds the high step vertical face climbing asks for.', why: foot >= 4 ? 'foot' : 'multi' };
+    }
+    if (sid === 'kpower') {
+      if (crack >= 5) return { add: 'Cap the main set at 4 problems. Cracks are the priority, and this session only keeps your power topped up.', why: 'crack' };
+      if (end >= 4 && ph !== 'peak') return { sid: 'k4x4', why: 'end' };
+    }
+    if (sid === 'kstrength') {
+      if (crack >= 5) return { sid: 'crackhard', why: 'crack' };
+      if (end >= 4 && fing < 4) return { sid: 'ksteep', why: 'end' };
+      if (fing >= 4) return { add: 'This is the session that matters most for this area. Protect it: arrive rested and take the full rests.', why: 'fing' };
+    }
+    if (sid === 'sat' && ph !== 'peak') {
+      if (crack >= 5) return { sid: 'cracklaps', why: 'crack' };
+      if (end >= 4) return { force: 'endurance', why: 'end' };
+      if (multi >= 4) return { sid: 'longday', why: 'multi' };
+      if (foot >= 4) return { force: 'technique', why: 'foot' };
+    }
+    if (sid === 'cracks') {
+      if (crack >= 4) return { add: 'Your key session for this area. Add one lap through your hardest size only.', why: 'crack' };
+      if (crack < 3 && end >= 4) return { sid: 'pump2', why: 'end' };
+    }
+    return null;
+  }
+  function liftContent(sid, w, type) {
+    var L = LIFT[sid];
+    return { t: L.t, short: L.short, mins: 60, kind: 'lift', tags: sid === 'lift1' ? ['pow'] : [], focus: L.focus, rows: liftRows(sid, w, type), effort: LIFT_EFFORT[phKey(w)] };
+  }
+  function planWeek(mon) {
+    var monS = ymd(mon), k = 'plan' + monS;
+    if (cache[k]) return cache[k];
+    var w = weekNo(mon), type = weekType(monS), order = ORDER[type], a = curArea(), spec = specificity(mon), ph = phKey(w), wd = S.weeks[monS] || { p: {} }, seenOut = false;
+    var out = order.map(function (base, i) {
+      var o = { i: i, d: DOW[i], date: ymd(addDays(mon, i)), w: w, base: base, sid: base, type: type, key: false, why: '', add: '', coach: (wd.p || {})[base] || null };
+      var sw = a && spec.on && type !== 'out' ? areaSwap(a, base, ph) : null, force;
+      if (sw) {
+        if (sw.sid) { o.sid = sw.sid; o.swapped = true; }
+        if (sw.force) force = sw.force;
+        if (sw.add) o.add = sw.add;
+        if (sw.why) o.why = (a.short || a.name) + ' rates ' + DIM_LABEL[sw.why].toLowerCase() + ' ' + dimScore(a, sw.why) + ' out of 5.';
+      }
+      if (LIFT[o.sid]) o.c = liftContent(o.sid, w, type);
+      else if (o.sid === 'outside') { o.c = SESS.outside(w, seenOut); seenOut = true; }
+      else o.c = SESS[o.sid](w, force);
+      if (type === 'out' && base === 'lift3') o.add = 'Cut down for the trip: nothing that leaves your legs or forearms sore two days before you climb.';
+      if (type === 'tue' && base === 'lift3') o.add = 'Easy pull-ups are cut to 2 sets, because limit bouldering was yesterday and power is tomorrow.';
+      if (spec.taper && o.c.kind !== 'rest') o.add = (o.add ? o.add + ' ' : '') + 'Taper: half the volume, nothing to failure.';
+      o.key = ['kpower', 'kstrength', 'sat'].indexOf(base) >= 0 || (sw && sw.why === 'crack' && base === 'cracks');
+      return o;
+    });
+    return (cache[k] = out);
+  }
+  function todaySlot() { var t = today0(); return planWeek(monday(t))[(t.getDay() + 6) % 7]; }
+
+  /* ---------- Sessions and stats ---------- */
+  function allSessions() {
+    if (cache.all) return cache.all;
+    var out = [];
+    Object.keys(S.weeks).forEach(function (m) { var s = S.weeks[m].s || {}; Object.keys(s).forEach(function (id) { out.push(Object.assign({ id: id }, s[id])); }); });
+    out.sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : (a.id < b.id ? 1 : -1); });
+    return (cache.all = out);
+  }
+  function sessionsOn(dateS) { return allSessions().filter(function (s) { return s.date === dateS; }); }
+  function sKind(s) { return s.kind || kindOf(s.sid); }
+  function lastEx(name, beforeDate, skipId) {
+    var all = allSessions();
+    for (var i = 0; i < all.length; i++) {
+      var s = all[i];
+      if (s.id === skipId || (beforeDate && s.date > beforeDate) || !s.ex) continue;
+      for (var j = 0; j < s.ex.length; j++) if (s.ex[j].n === name && (s.ex[j].sets || []).some(function (v) { return v !== '' && v != null; })) return { e: s.ex[j], date: s.date };
+    }
+    return null;
+  }
+  function exLine(e) {
+    var sets = (e.sets || []).filter(function (v) { return v !== '' && v != null; });
+    var w = e.w !== '' && e.w != null ? (e.wl === 'lb added' ? '+' : '') + e.w + ' × ' : '';
+    return w + sets.join(', ') + (e.rir !== '' && e.rir != null ? ' · ' + e.rir + ' in reserve' : '');
+  }
+  function probLine(p) { return p.n + (p.g ? ' ' + p.g : '') + (p.sent ? ' ✓' : '') + (p.tries ? ' (' + p.tries + (p.tries === 1 ? ' try' : ' tries') + ')' : ''); }
+  function weekStats(monS) {
+    var k = 'ws' + monS; if (cache[k]) return cache[k];
+    var wd = S.weeks[monS] || { s: {}, c: {} }, ss = Object.keys(wd.s || {}).map(function (id) { return wd.s[id]; });
+    var st = { lifts: 0, climbs: 0, load: 0, mins: 0, trav: 0, travMax: 0, top: {}, sends: 0, tries: 0 };
+    var liftSeen = {};
+    ss.forEach(function (s) {
+      var kd = sKind(s);
+      if (kd === 'lift') { if (s.sid === 'lift1' || s.sid === 'lift3') liftSeen[s.sid] = 1; }
+      else if (kd !== 'other' && kd !== 'rest') st.climbs++;
+      if (s.mins) st.mins += +s.mins;
+      if (s.mins && s.rpe) st.load += s.mins * s.rpe;
+      if (s.trav && s.trav.sets) s.trav.sets.forEach(function (x) { var m = num(x.m); if (m) { st.trav += m; st.travMax = Math.max(st.travMax, m); } });
+      (s.ex || []).forEach(function (e) { var w = num(e.w); if (w != null && (e.sets || []).some(function (v) { return v !== '' && v != null; })) st.top[e.n] = Math.max(st.top[e.n] || 0, w); });
+      (s.probs || []).forEach(function (p) { if (!p.warm) { st.tries += +p.tries || 0; if (p.sent) st.sends++; } });
+    });
+    st.lifts = Object.keys(liftSeen).length;
+    var cs = Object.keys(wd.c || {}).map(function (d) { return wd.c[d]; });
+    function col(f) { return cs.map(function (c) { return num(c[f]); }).filter(function (v) { return v != null; }); }
+    st.sleep = avg(col('sleep')); st.energy = avg(col('energy')); st.sore = avg(col('sore'));
+    var pains = col('pain'); st.pain = pains.length ? Math.max.apply(null, pains) : null;
+    var bws = col('bw'); st.bw = bws.length ? bws[bws.length - 1] : null;
+    return (cache[k] = st);
+  }
+  function blockWeeks() {
+    if (!blockStart()) return [];
+    var out = [];
+    for (var w = 1; w <= 13; w++) { var m = weekMon(w); out.push({ w: w, mon: m, monS: ymd(m), ph: phaseOf(w), st: weekStats(ymd(m)) }); }
+    return out;
+  }
+  function chartWeeks() {
+    var bw = blockWeeks(); if (bw.length) return bw;
+    var out = [], mon = monday(today0());
+    for (var i = 7; i >= 0; i--) { var m = addDays(mon, -7 * i); out.push({ w: 0, mon: m, monS: ymd(m), ph: 'off', st: weekStats(ymd(m)) }); }
+    return out;
+  }
+  function checkin(dateS) { var wd = S.weeks[monOf(dateS)]; return wd && wd.c ? wd.c[dateS] || null : null; }
+  function last7(field, fn) {
+    var t = today0(), v = [];
+    for (var i = 0; i < 7; i++) { var c = checkin(ymd(addDays(t, -i))); if (c && num(c[field]) != null) v.push(num(c[field])); }
+    return fn ? fn(v) : avg(v);
+  }
+  function coverage(a) {
+    var from = ymd(addDays(today0(), -27)), recent = allSessions().filter(function (s) { return s.date >= from; });
+    var target = { 5: 8, 4: 6, 3: 4 };
+    return DIMS.map(function (d, i) {
+      var need = target[a.s[i]]; if (!need) return null;
+      return { l: d[1], got: recent.filter(function (s) { return (s.tags || []).indexOf(d[0]) >= 0; }).length, need: need };
+    }).filter(Boolean);
+  }
+  function tickCounts(id) {
+    var r = S.ticks[id] || {}, sent = 0, tried = 0;
+    Object.keys(r).forEach(function (k) { if (r[k] === 's') sent++; else if (r[k] === 't') tried++; });
+    return { sent: sent, tried: tried, total: DETAIL[id] ? DETAIL[id].routes.length : 0 };
+  }
+  function readiness(c) {
+    if (!c) return null;
+    if (num(c.pain) >= 4 || (num(c.energy) != null && num(c.energy) <= 2)) return { k: 'bad', t: 'Back off today', d: (num(c.pain) >= 4 ? 'Pain is 4 or more' + (c.where ? ' (' + c.where + ')' : '') + '.' : 'Energy is 2 or less.') + ' Rest, or keep it easy and skip anything that loads the sore area.' };
+    if (num(c.pain) === 3) return { k: 'warn', t: 'Train with care', d: 'Pain at 3 is the most to train through. Skip moves that load it and stop if it climbs.' };
+    return { k: 'good', t: 'Good to train', d: '' };
+  }
+
+  /* ---------- Sample data (never saved) ---------- */
+  function makeSample() {
+    var s = blank(), t = today0(), start = addDays(monday(t), -14);
+    s.settings = { areaId: 'rrg', start: ymd(addDays(t, 30)), end: ymd(addDays(t, 33)), block: ymd(start), wt: {} };
+    S = s; touch();
+    var W = { 'Pull-up': 10, 'Seated dumbbell shoulder press': 35, 'High-box step-up': 25, 'Barbell row': 115, 'Cable external rotation': 10, 'Romanian deadlift': 45, 'Bench press': 125, 'Pendulum squat': 140, 'Rear delt fly': 10, 'Lateral raise': 12.5 };
+    var names = ['Slow Burn', 'Paper Crane', 'Left Hook', 'Granite Kiss', 'Night Shift', 'Tall Order'], n = 0;
+    for (var d = new Date(start); d < t; d = addDays(d, 1)) {
+      var dS = ymd(d), mS = monOf(dS), wk = Math.floor(dayDiff(d, start) / 7), slot = planWeek(monday(d))[(d.getDay() + 6) % 7], wd = weekDoc(mS), c = slot.c;
+      wd.c[dS] = { sleep: 6.5 + (n % 3) * 0.5, energy: 3 + (n % 3), sore: n % 3, pain: 0 };
+      if (c.kind === 'rest') { n++; continue; }
+      var x = { date: dS, sid: slot.sid, title: c.t, kind: c.kind, tags: c.tags, mins: c.mins - 10 + (n % 3) * 10, rpe: 5 + (n % 4), notes: '', areaId: 'rrg' };
+      if (c.kind === 'lift') x.ex = c.rows.map(function (r) { return { n: r.n, wl: r.wl, target: r.target, w: W[r.n] != null ? W[r.n] + wk * 5 : '', sets: Array(r.sets).fill(Math.min(r.hi, r.lo + wk)), rir: 2 }; });
+      if (c.kind === 'board') x.probs = [0, 1, 2, 3].map(function (i) { return { n: names[(n + i) % 6], g: 'V' + (3 + ((n + i) % 3)), tries: 2 + (i % 3), sent: (n + i) % 2 === 0 }; });
+      if (c.kind === 'endur') { x.trav = { kind: 'endurance', sets: [{ m: 5 + wk, p: 3 }, { m: 5 + wk, p: 4 }, { m: 4 + wk, p: 4 }] }; x.laps = { rounds: 4, grade: 'V1' }; }
+      if (c.kind === 'crack') x.cracks = { laps: 4 + wk, sizes: ['Hands', 'Off-fingers'] };
+      wd.s['s' + n] = x; n++;
+    }
+    s.kilter.items = names.map(function (nm, i) { return { n: nm, g: 'V' + (3 + (i % 3)), list: 'Logged', status: i % 2 ? 'Projecting' : 'Sent', sessions: 2 }; });
+    s.tests.rows = { pull: { w1: '12' }, pull3: { w1: '25' }, trav: { w1: '5' } };
+    touch();
+    return s;
+  }
+  /* ---------- Shared pieces ---------- */
+  var app = document.getElementById('app');
+  var CAMS6 = [['Fingers', '.4'], ['Off-fingers', '.75'], ['Thin hands', '1'], ['Hands', '2'], ['Cupped hands', '3'], ['Fists', '4']];
+  var TESTS = [['pull', 'Max strict bodyweight pull-ups'], ['pull3', 'Weighted pull-up, 3-rep max (added lb)'], ['rdl', 'Romanian deadlift, 5-rep max (lb)'], ['bench', 'Bench press, 5-rep max (lb)'], ['hollow', 'Hollow body hold (s)'], ['tql', 'Tindeq max pull, left hand'], ['tqr', 'Tindeq max pull, right hand'], ['kilter', 'Hardest board send at 40°'], ['retest', 'Retest problems sent (of 3)'], ['trav', 'Longest nonstop traverse (min)'], ['bw', 'Body weight (lb)'], ['waist', 'Waist at navel (in)']];
+
+  function notes() {
+    var o = '';
+    if (ui.sample) o += '<div class="banner"><span>Sample data for a made-up climber. Nothing here is saved.</span><button class="link" data-act="sample-off">Exit sample</button></div>';
+    if (saveMsg) o += '<p class="msg" role="status">' + esc(saveMsg) + '</p>';
+    if (mode === 'memory' && !ui.sample) o += '<p class="msg" role="status">This browser is blocking storage, so changes will be lost when you close the page. Turn off private browsing, or export a backup from Data before you leave.</p>';
+    return o;
+  }
+  function boltLine(sel, pick) {
+    var bw = blockWeeks(), cur = weekNo(today0());
+    var cells = bw.map(function (x) {
+      var n = x.st.lifts + x.st.climbs, cls = 'bolt';
+      if (x.ph === 'deload') cls += ' deload'; if (x.ph === 'test') cls += ' test';
+      if (x.w === cur) cls += ' now'; else if (n >= 4) cls += ' done'; else if (n >= 1) cls += ' part';
+      if (pick && x.w === sel) cls += ' sel';
+      var tip = 'Week ' + x.w + ' · ' + PH[x.ph].l + '\n' + fmt(x.monS) + '\n' + x.st.lifts + ' of 2 lifts, ' + x.st.climbs + ' of 4 climbs';
+      return '<button type="button" class="' + cls + '" ' + (pick ? 'data-act="selweek" data-w="' + x.w + '"' : 'data-act="goweek" data-w="' + x.w + '"') + ' data-tip="' + esc(tip) + '" aria-label="Week ' + x.w + ', ' + PH[x.ph].l + '"><i></i></button>';
+    }).join('');
+    var ph = phaseOf(cur);
+    function lab(t, a, b, k) { return '<span style="grid-column:' + a + '/' + (b + 1) + '"' + (cur >= a && cur <= b ? ' class="cur"' : '') + '>' + t + '</span>'; }
+    return '<div class="bolts"><div class="bolt-row">' + cells + '</div><div class="bolt-labels">' + lab('Build', 1, 4) + lab('Dl', 5, 5) + lab('Strength', 6, 8) + lab('Dl', 9, 9) + lab('Peak', 10, 12) + lab('Test', 13, 13) + '</div></div>';
+  }
+  function partsHtml(slot) {
+    var c = slot.c, co = slot.coach || {};
+    if (c.kind === 'lift') {
+      return '<table class="lift"><tbody>' + c.rows.map(function (r) {
+        var x = (co.ex || {})[r.n] || {}, last = lastEx(r.n, null);
+        var w = x.w != null && x.w !== '' ? (r.wl === 'lb added' ? '+' : '') + x.w + ' lb · ' : '';
+        return '<tr><td><b>' + esc(r.n) + '</b>' + (x.coach ? '<small>' + esc(x.coach) + '</small>' : last ? '<small>Last: ' + esc(exLine(last.e)) + '</small>' : '') + '</td><td>' + esc(w + (x.target || r.target)) + '</td></tr>';
+      }).join('') + '</tbody></table><p class="small muted">' + esc(c.effort) + '</p>';
+    }
+    return '<ul class="parts">' + c.parts.map(function (p) {
+      var x = (co.parts || {})[p[0]] || {};
+      return '<li><b>' + esc(p[0]) + '</b><span>' + esc(x.target || p[1]) + (x.coach ? '<small style="font-family:var(--body);font-size:.84rem">' + esc(x.coach) + '</small>' : '') + (p[2] ? '<small>Rest ' + esc(p[2]) + '</small>' : '') + '</span></li>';
+    }).join('') + '</ul>';
+  }
+  function sessionBody(slot) {
+    var c = slot.c, co = slot.coach || {};
+    return '<p>' + esc(c.focus) + '</p>' +
+      (slot.swapped || slot.why ? '<p class="why">' + (slot.swapped ? 'Area session, in place of ' + esc((LIFT[slot.base] || SESS[slot.base](slot.w)).t) + '. ' : '') + esc(slot.why) + '</p>' : '') +
+      (co.focus && !slot.swapped ? '<p class="msg coach"><b>Coach note.</b> ' + esc(co.focus) + '</p>' : '') +
+      partsHtml(slot.swapped ? Object.assign({}, slot, { coach: null }) : slot) +
+      (slot.add ? '<p class="msg">' + esc(slot.add) + '</p>' : '');
+  }
+  function areaCard(a, active) {
+    var chips = topDims(a, 2).map(function (d) { return '<span class="pill">' + esc(d.l) + ' ' + d.v + '/5</span>'; }).join('');
+    return '<a class="card acard" href="#area-' + a.id + '"><div class="row between"><span class="mono muted">' + esc(a.st) + '</span>' + (active ? '<span class="pill solid">Training for</span>' : '') + '</div>' +
+      '<h3>' + esc(a.name) + '</h3><p class="small muted">' + esc(a.style) + '</p><div class="chips">' + chips + (DETAIL[a.id] ? '<span class="pill dash">Tick list + trip plan</span>' : '') + '</div></a>';
+  }
+  function scale(field, lo, hi, val, attr, hot) {
+    var o = '<div class="scale' + (hot ? ' hot' : '') + '" role="group">';
+    for (var i = lo; i <= hi; i++) o += '<button type="button" ' + attr + ' data-f="' + field + '" data-v="' + i + '" aria-pressed="' + (String(val) === String(i)) + '"' + (hot && i >= hot ? ' class="hi"' : '') + '>' + i + '</button>';
+    return o + '</div>';
+  }
+
+  /* ---------- Today ---------- */
+  function checkinCard() {
+    var dS = ymd(today0()), c = checkin(dS);
+    if (c && !ui.ciEdit) {
+      var r = readiness(c);
+      return '<section class="card"><div class="row between"><h3>Morning check-in</h3><span class="pill ' + r.k + '">' + r.t + '</span></div>' +
+        '<div class="ci-sum"><div><b>' + esc(c.sleep != null ? c.sleep : '–') + '</b><span>hours of sleep</span></div><div><b>' + esc(c.energy != null ? c.energy : '–') + '</b><span>energy, of 5</span></div><div><b>' + esc(c.sore != null ? c.sore : '–') + '</b><span>soreness, of 5</span></div><div><b>' + esc(c.pain != null ? c.pain : '–') + '</b><span>pain, of 10</span></div></div>' +
+        (r.d ? '<p class="small">' + esc(r.d) + '</p>' : '') + (c.note ? '<p class="small muted">' + esc(c.note) + '</p>' : '') + '<div><button class="link" data-act="ci-edit">Edit</button></div></section>';
+    }
+    var d = ui.ci || (ui.ci = Object.assign({ sleep: 7, energy: '', sore: '', pain: '', where: '', bw: '', hr: '', note: '' }, c || {}));
+    return '<section class="card"><div class="row between"><h3>Morning check-in</h3><span class="mono muted">30 seconds</span></div><div class="ci">' +
+      '<span>Sleep</span><div class="step"><button type="button" data-act="ci-step" data-v="-0.5" aria-label="Less sleep">−</button><b>' + d.sleep + ' h</b><button type="button" data-act="ci-step" data-v="0.5" aria-label="More sleep">+</button></div>' +
+      '<span>Energy</span>' + scale('energy', 1, 5, d.energy, 'data-act="ci-set"') +
+      '<span>Soreness</span>' + scale('sore', 0, 5, d.sore, 'data-act="ci-set"') +
+      '<span>Pain</span>' + scale('pain', 0, 10, d.pain, 'data-act="ci-set"', 4) +
+      (num(d.pain) > 0 ? '<span>Where</span><input id="ci-where" data-ci="where" value="' + esc(d.where) + '" placeholder="Finger, elbow, wrist, shoulder">' : '') +
+      '</div><details class="more"><summary>Body weight, resting heart rate, a note</summary><div class="grid2"><label class="f" for="ci-bw">Body weight (lb)<input id="ci-bw" type="number" step="0.1" inputmode="decimal" data-ci="bw" value="' + esc(d.bw) + '"></label><label class="f" for="ci-hr">Resting heart rate<input id="ci-hr" type="number" inputmode="numeric" data-ci="hr" value="' + esc(d.hr) + '"></label></div><label class="f" for="ci-note" style="margin-top:.6rem">Note<input id="ci-note" data-ci="note" value="' + esc(d.note) + '"></label></details>' +
+      '<p class="small muted">Pain is for fingers, elbows, wrists and shoulders: 0–2 is fine, 3 is the most to train through, 4 or more means back off.</p>' +
+      '<div class="row"><button class="btn" data-act="ci-save">Save check-in</button>' + (c ? '<button class="link" data-act="ci-cancel">Cancel</button>' : '') + '</div></section>';
+  }
+  function viewHome() {
+    if (mode === 'loading') return '<section class="hero"><h1>Approach</h1><p class="muted">Loading your training…</p></section>';
+    if (mode === 'signedout') return '<section class="hero"><span class="mono">Approach</span><h1>Sign in</h1><p class="muted small">Your training log syncs to your own account, so it follows you from phone to laptop.</p></section>' +
+      '<form class="card" id="authform"><label class="f" for="a-email">Email<input id="a-email" type="email" autocomplete="email" required></label><label class="f" for="a-pw">Password<input id="a-pw" type="password" autocomplete="current-password" minlength="6" required></label>' + (ui.authMsg ? '<p class="msg" role="alert">' + esc(ui.authMsg) + '</p>' : '') +
+      '<div class="row"><button class="btn" type="submit" data-mode="in"' + (ui.authBusy ? ' disabled' : '') + '>Sign in</button><button class="btn quiet" type="submit" data-mode="up"' + (ui.authBusy ? ' disabled' : '') + '>Create account</button></div></form>';
+    if (!blockStart()) {
+      return '<section class="hero"><span class="mono">Approach</span><h1>Train for where you’re going</h1><p class="muted">A 13-week block of board sessions, endurance and lifting that retunes itself to the rock you are headed for, with your tick list and trip prep in the same place.</p>' +
+        '<div class="row" style="margin-top:.4rem"><button class="btn" data-act="start-block">Start a block this week</button><button class="btn quiet" data-act="sample-on">Look around with sample data</button></div></section>' + notes() +
+        '<section class="stack"><div class="sec-head"><h2>Pick where you’re headed</h2><a href="#areas">All ' + AREAS.length + ' areas</a></div><div class="cards">' + ['rrg', 'nrg', 'ic'].map(function (id) { return areaCard(AREA[id], false); }).join('') + '</div></section>';
+    }
+    var t = today0(), tS = ymd(t), mon = monday(t), monS = ymd(mon), w = weekNo(t), ph = phaseOf(w), week = planWeek(mon), idx = (t.getDay() + 6) % 7, slot = week[idx], ws = weekStats(monS), trip = tripInfo();
+    var done = sessionsOn(tS).length > 0, isRest = slot.c.kind === 'rest';
+    var right = trip.k === 'ahead' ? '<div class="bignum">' + trip.days + '<small>days to ' + esc(trip.a.short || trip.a.name) + '</small></div>' : (w >= 1 && w <= 13 ? '<div class="bignum">' + (14 - w) + '<small>weeks left</small></div>' : '');
+    var h = '<section class="hero"><span class="mono">' + t.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) + '</span>' +
+      '<div class="hero-row"><h1>' + (w >= 1 && w <= 13 ? 'Week ' + w + '<br>' + esc(PH[ph].l) : w > 13 ? 'Block<br>finished' : 'Block starts<br>' + esc(fmt(blockStart()))) + '</h1>' + right + '</div>' +
+      '<p class="muted small">' + esc(PH[ph].d) + '</p>' + boltLine() + '</section>' + notes();
+    h += checkinCard();
+    h += '<section class="stack"><div class="sec-head"><h2>Today</h2><span class="mono">' + (slot.c.mins ? 'About ' + slot.c.mins + ' min' : weekType(monS) === 'tue' ? esc(restWord()) + ' week' : 'Recover') + '</span></div>' +
+      '<div class="card' + (slot.key ? ' key' : '') + '"><div class="row between"><h3>' + esc(slot.c.t) + '</h3>' + (done ? '<span class="pill good">Logged</span>' : slot.key ? '<span class="pill solid">Key session</span>' : '') + '</div>' + sessionBody(slot) +
+      (isRest ? '' : '<div class="row"><button class="btn" data-act="start" data-date="' + tS + '">' + (done ? 'Log another session' : 'Start session') + '</button><a class="btn quiet" href="#plan">Whole week</a></div>') + '</div></section>';
+    h += '<section class="stack"><div class="sec-head"><h2>This week</h2><span class="mono">' + ws.lifts + ' of 2 lifts · ' + ws.climbs + ' of 4 climbs</span></div><div class="week">' + week.map(function (s, i) {
+      var dn = sessionsOn(s.date).length > 0;
+      return '<a class="day' + (i === idx ? ' today' : '') + (dn ? ' done' : '') + (s.c.kind === 'rest' && !dn ? ' restd' : '') + '" href="#plan" data-act="openday" data-i="' + i + '"><b>' + s.d + '</b><em>' + parse(s.date).getDate() + '</em><span>' + esc(s.c.short) + '</span></a>';
+    }).join('') + '</div></section>';
+    var en = last7('energy'), sl = last7('sleep');
+    h += '<div class="tiles"><div class="tile"><b>' + (ws.load ? Math.round(ws.load).toLocaleString() : '–') + '</b><span>training load this week (effort × minutes)</span></div><div class="tile"><b>' + (en != null ? r1(en).toFixed(1) : '–') + '<small> /5</small></b><span>energy, last 7 days</span></div><div class="tile"><b>' + (sl != null ? r1(sl).toFixed(1) : '–') + '<small> h</small></b><span>sleep, last 7 days</span></div></div>';
+    if (trip.k === 'none') h += '<section class="card"><h3>Tune this block to a trip</h3><p class="small muted">Pick the area you are headed to. Approach swaps in the sessions its rock rewards as the trip gets close, and keeps the tick list and packing notes in one place.</p><div class="row"><a class="btn ghost" href="#areas">Choose an area</a></div></section>';
+    else {
+      var a = trip.a, cov = coverage(a), d = DETAIL[a.id], tc = tickCounts(a.id);
+      h += '<section class="stack"><div class="sec-head"><h2>' + esc(a.name) + '</h2><a href="#area-' + a.id + '">Trip plan</a></div><p class="small muted">' + esc(specificity(mon).label || '') + '</p>' +
+        '<div class="card"><p class="small muted">Sessions in the last 4 weeks against what ' + esc(a.short || a.name) + ' asks for. A full bar means you have trained that quality as often as its rating calls for.</p><div class="bars">' + cov.map(function (c) {
+          return '<div class="bar"><span>' + esc(c.l) + '</span><div class="track"><i style="width:' + Math.min(100, Math.round(c.got / c.need * 100)) + '%"></i></div><span class="val">' + c.got + ' / ' + c.need + '</span></div>';
+        }).join('') + '</div>' + (d ? '<p class="small muted">' + tc.sent + ' sent and ' + tc.tried + ' tried of ' + tc.total + ' routes on the tick list.</p>' : '') + '</div></section>';
+    }
+    return h;
+  }
+
+  /* ---------- Plan ---------- */
+  function viewPlan() {
+    if (!blockStart()) return '<section class="hero"><h1>Plan</h1><p class="muted">Start a block and the 13 weeks appear here.</p><div class="row"><button class="btn" data-act="start-block">Start a block this week</button></div></section>';
+    var cur = weekNo(today0()), w = ui.planWeek || Math.min(13, Math.max(1, cur)), mon = weekMon(w), monS = ymd(mon), ph = phaseOf(w), week = planWeek(mon), type = weekType(monS), a = curArea(), spec = specificity(mon);
+    var idx = w === cur ? (today0().getDay() + 6) % 7 : -1, open = ui.openDay != null ? ui.openDay : idx;
+    var h = '<section class="hero"><span class="mono">13-week block · started ' + esc(fmt(blockStart())) + '</span><h1>Plan</h1>' + boltLine(w, true) + '</section>' + notes();
+    h += '<section class="stack"><div class="row between"><button class="btn quiet sm" data-act="selweek" data-w="' + (w - 1) + '"' + (w <= 1 ? ' disabled' : '') + ' aria-label="Previous week">‹</button><div style="text-align:center"><h2>Week ' + w + ' · ' + esc(PH[ph].l) + '</h2><span class="mono muted">' + esc(fmt(monS)) + ' – ' + esc(fmt(ymd(addDays(mon, 6)))) + (w === cur ? ' · this week' : '') + '</span></div><button class="btn quiet sm" data-act="selweek" data-w="' + (w + 1) + '"' + (w >= 13 ? ' disabled' : '') + ' aria-label="Next week">›</button></div>' +
+      '<p class="small muted">' + esc(PH[ph].d) + '</p>' +
+      '<div class="row"><div class="seg" role="group" aria-label="Week shape">' + [['normal', 'Normal week'], ['tue', esc(restWord()) + ' week'], ['out', 'Outdoor weekend']].map(function (o) { return '<button type="button" data-act="wtype" data-v="' + o[0] + '" aria-pressed="' + (type === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div></div>' +
+      (type === 'tue' ? '<p class="small muted">The rest day moves to Tuesday. Limit bouldering goes right after it, when fingers are freshest, and stays 48 hours from the power session.</p>' : type === 'out' ? '<p class="small muted">The hardest finger session moves to Tuesday, the second lift moves to Thursday and is cut down, and Friday is travel.</p>' : '') +
+      (a ? '<p class="why"><b>' + esc(a.name) + '.</b> ' + esc(spec.label || '') + '</p>' : '<p class="small muted">No area chosen, so this is the plain block. <a href="#areas">Choose an area</a> to tune it.</p>') + '</section>';
+    h += '<section class="stack">' + week.map(function (s, i) {
+      var dn = sessionsOn(s.date).length > 0;
+      return '<details class="card' + (s.key ? ' key' : '') + '" data-day="' + i + '"' + (i === open ? ' open' : '') + '><summary><span class="dow">' + s.d + '<small>' + esc(fmt(s.date)) + '</small></span><span class="sum-main"><b>' + esc(s.c.t) + '</b><span class="small muted">' + (s.c.mins ? 'About ' + s.c.mins + ' min' : 'Recover') + (i === idx ? ' · today' : '') + '</span></span>' + (dn ? '<span class="pill good">Logged</span>' : s.swapped ? '<span class="pill solid">Area</span>' : s.key ? '<span class="pill">Key</span>' : '') + '</summary>' +
+        sessionBody(s) + (s.c.kind === 'rest' ? '' : '<div class="row"><button class="btn sm" data-act="start" data-date="' + s.date + '">' + (dn ? 'Log another' : 'Log this session') + '</button></div>') + '</details>';
+    }).join('') + '</section>';
+    h += '<p class="foot">At least 48 hours between board sessions. Lifting gives way before climbing does: if a lift leaves you tired for the next climbing day, cut it. Skip any session if something hurts.</p>';
+    return h;
+  }
+
+  /* ---------- Session logger ---------- */
+  function timerLabel() { var D = ui.D; if (!D || !D.t0) return '0:00'; var s = Math.floor((Date.now() - D.t0) / 1000); return Math.floor(s / 60) + ':' + pad(s % 60); }
+  function restBtn(sec, label) { return sec ? '<button type="button" class="btn quiet sm" data-act="rest" data-sec="' + sec + '">Rest ' + (sec >= 60 ? Math.floor(sec / 60) + ':' + pad(sec % 60) : sec + ' s') + '</button>' : ''; }
+  function viewSession() {
+    var D = ui.D; if (!D) return viewHome();
+    var h = '<section class="hero"><a class="small" href="#home" data-act="discard">Close without saving</a><span class="mono">' + esc(fmt(D.date, { weekday: 'long', month: 'short', day: 'numeric' })) + (D.w >= 1 && D.w <= 13 ? ' · week ' + D.w : '') + '</span><h1>' + esc(D.title) + '</h1>' + (D.focus ? '<p class="muted small">' + esc(D.focus) + '</p>' : '') + '</section>';
+    h += '<div class="grid2"><label class="f" for="d-date">Date<input type="date" id="d-date" data-b="date" value="' + esc(D.date) + '"></label><label class="f" for="d-title">Session<input id="d-title" data-b="title" value="' + esc(D.title) + '"></label></div>';
+    if (D.coachFocus) h += '<p class="msg coach"><b>Coach note.</b> ' + esc(D.coachFocus) + '</p>';
+    if (D.kind === 'lift') {
+      h += '<details class="more"><summary>Warm-up</summary><p class="small">' + esc(LIFTWARM) + '</p></details>';
+      h += D.ex.map(function (e, i) {
+        var filled = e.sets.filter(function (v) { return v !== ''; }), full = e.hi && filled.length === e.sets.length && filled.every(function (v) { return +v >= e.hi; });
+        var quick = []; if (e.hi) for (var q = e.lo; q <= e.hi; q++) quick.push(q);
+        return '<div class="exo' + (full ? ' full' : '') + '"><div class="exo-head"><h3>' + esc(e.n) + '</h3><span class="mono">' + esc(e.target || '') + '</span></div>' +
+          (e.coach ? '<p class="small"><b>Coach:</b> ' + esc(e.coach) + '</p>' : '') +
+          (e.last ? '<p class="last">Last time, ' + esc(fmt(e.last.date)) + ': ' + esc(exLine(e.last.e)) + '</p>' : '') +
+          '<div class="sets">' + (e.wl ? '<input class="w num" type="number" step="0.5" inputmode="decimal" id="e' + i + 'w" data-b="ex.' + i + '.w" value="' + esc(e.w) + '" aria-label="Weight, ' + esc(e.wl) + '" placeholder="lb"><span class="x">×</span>' : '') +
+          e.sets.map(function (v, j) { return '<input class="num" type="number" inputmode="numeric" id="e' + i + 's' + j + '" data-b="ex.' + i + '.sets.' + j + '" value="' + esc(v) + '" placeholder="' + (e.last && e.last.e.sets[j] != null ? esc(e.last.e.sets[j]) : e.hi || '') + '" aria-label="Set ' + (j + 1) + '">'; }).join('') +
+          '<button type="button" class="btn quiet sm" data-act="addset" data-i="' + i + '" aria-label="Add a set">+</button></div>' +
+          (e.wl ? '<span class="small muted" style="margin-top:-.4rem">' + esc(e.wl) + '</span>' : '') +
+          '<div class="row">' + (quick.length && quick.length <= 4 ? '<span class="small muted">All sets at</span>' + quick.map(function (q) { return '<button type="button" class="chip" data-act="fill" data-i="' + i + '" data-v="' + q + '">' + q + '</button>'; }).join('') : '') + restBtn(e.restSec) + '</div>' +
+          '<div class="row"><span class="small muted">Reps in reserve</span><div class="seg">' + [0, 1, 2, 3, 4].map(function (r) { return '<button type="button" data-act="rir" data-i="' + i + '" data-v="' + r + '" aria-pressed="' + (String(e.rir) === String(r)) + '">' + (r === 4 ? '4+' : r) + '</button>'; }).join('') + '</div></div>' +
+          (full ? '<p class="small" style="color:var(--good)"><b>Ready to go up.</b> Every set hit the top of the range: add weight next time.</p>' : '') +
+          '<details class="more"' + (e.note ? ' open' : '') + '><summary>Cue and note</summary><p class="small muted">' + esc(e.cue || '') + '</p><textarea id="e' + i + 'n" data-b="ex.' + i + '.note" rows="2" placeholder="How it felt, what to change">' + esc(e.note) + '</textarea></details></div>';
+      }).join('');
+      h += '<div class="row"><button type="button" class="btn quiet sm" data-act="addex">Add an exercise</button></div>';
+    } else if (D.kind === 'board') {
+      var tries = D.probs.reduce(function (n, p) { return n + (+p.tries || 0); }, 0), sends = D.probs.filter(function (p) { return p.sent; }).length;
+      h += (D.parts || []).length ? '<details class="more"><summary>Session plan</summary><ul class="parts">' + D.parts.map(function (p) { return '<li><b>' + esc(p[0]) + '</b><span>' + esc(p[1]) + (p[2] ? '<small>Rest ' + esc(p[2]) + '</small>' : '') + '</span></li>'; }).join('') + '</ul></details>' : '';
+      h += '<div class="exo"><div class="exo-head"><h3>Problems</h3><span class="mono">' + tries + (tries === 1 ? ' try' : ' tries') + ' · ' + sends + ' sent</span></div>' +
+        D.probs.map(function (p, i) {
+          return '<div class="prob"><input id="p' + i + 'n" data-b="probs.' + i + '.n" value="' + esc(p.n) + '" placeholder="Problem name" list="plist" aria-label="Problem name"><input id="p' + i + 'g" data-b="probs.' + i + '.g" value="' + esc(p.g) + '" placeholder="V4" aria-label="Grade">' +
+            '<div class="ctl"><div class="step"><button type="button" data-act="tries" data-i="' + i + '" data-v="-1" aria-label="One try fewer">−</button><b>' + (p.tries || 0) + (p.tries === 1 ? ' try' : ' tries') + '</b><button type="button" data-act="tries" data-i="' + i + '" data-v="1" aria-label="One more try">+</button></div>' +
+            '<button type="button" class="sent-t" data-act="sent" data-i="' + i + '" aria-pressed="' + !!p.sent + '">' + (p.sent ? 'Sent ✓' : 'Sent?') + '</button><button type="button" class="link" data-act="delprob" data-i="' + i + '">Remove</button></div>' +
+            '<input style="grid-column:1/-1" id="p' + i + 't" data-b="probs.' + i + '.note" value="' + esc(p.note || '') + '" placeholder="Best go, and what to try next time" aria-label="Note"></div>';
+        }).join('') +
+        '<div class="row" style="padding-top:.4rem"><button type="button" class="btn sm" data-act="addprob">Add a problem</button>' + restBtn(D.restSec || 180) + '</div>' +
+        (D.sugg && D.sugg.length ? '<div class="stack" style="gap:.4rem"><span class="small muted">Your projects</span><div class="chips">' + D.sugg.filter(function (x) { return !D.probs.some(function (p) { return p.n === x.n; }); }).map(function (x) { return '<button type="button" class="chip" data-act="pick" data-n="' + esc(x.n) + '" data-g="' + esc(x.g) + '">' + esc(x.n) + ' ' + esc(x.g) + '</button>'; }).join('') + '</div></div>' : '') + '</div>' +
+        '<datalist id="plist">' + S.kilter.items.map(function (x) { return '<option value="' + esc(x.n) + '">'; }).join('') + '</datalist>';
+    } else if (D.kind === 'endur') {
+      h += '<div class="exo"><div class="exo-head"><h3>Boulder laps</h3><span class="mono">Up, down, up</span></div><div class="grid3"><label class="f" for="l-r">Rounds<input id="l-r" type="number" inputmode="numeric" data-b="laps.rounds" value="' + esc(D.laps.rounds) + '"></label><label class="f" for="l-g">Grades<input id="l-g" data-b="laps.grade" value="' + esc(D.laps.grade) + '" placeholder="V0–V2"></label><label class="f" for="l-p">Pump, 1–10<input id="l-p" type="number" inputmode="numeric" data-b="laps.pump" value="' + esc(D.laps.pump) + '"></label></div><div class="row">' + restBtn(150) + '</div></div>';
+      h += '<div class="exo"><div class="exo-head"><h3>Traverse</h3><span class="mono">' + D.trav.sets.reduce(function (n, x) { return n + (num(x.m) || 0); }, 0) + ' min on the wall</span></div><div class="seg">' + ['endurance', 'technique', 'intervals', 'easy'].map(function (k) { return '<button type="button" data-act="travkind" data-v="' + k + '" aria-pressed="' + (D.trav.kind === k) + '">' + k.charAt(0).toUpperCase() + k.slice(1) + '</button>'; }).join('') + '</div>' +
+        (D.travTarget ? '<p class="small muted">' + esc(D.travTarget) + '</p>' : '') +
+        D.trav.sets.map(function (x, i) { return '<div class="grid3" style="align-items:end"><label class="f" for="t' + i + 'm">Set ' + (i + 1) + ', minutes<input id="t' + i + 'm" type="number" step="0.25" inputmode="decimal" data-b="trav.sets.' + i + '.m" value="' + esc(x.m) + '"></label><label class="f" for="t' + i + 'p">Pump, 1–10<input id="t' + i + 'p" type="number" inputmode="numeric" data-b="trav.sets.' + i + '.p" value="' + esc(x.p) + '"></label><button type="button" class="link" data-act="delset" data-i="' + i + '">Remove</button></div>'; }).join('') +
+        '<div class="row"><button type="button" class="btn sm" data-act="addtrav">Add a set</button>' + restBtn(D.restSec || 90) + '</div></div>';
+    } else if (D.kind === 'crack') {
+      h += '<div class="exo"><div class="exo-head"><h3>Cracks</h3><span class="mono">Laps and sizes</span></div><div class="row"><span class="small muted">Laps</span><div class="step"><button type="button" data-act="claps" data-v="-1" aria-label="One lap fewer">−</button><b>' + (D.cracks.laps || 0) + '</b><button type="button" data-act="claps" data-v="1" aria-label="One more lap">+</button></div>' + restBtn(150) + '</div>' +
+        '<div class="chips">' + CAMS6.map(function (c) { return '<button type="button" class="chip" data-act="csize" data-v="' + c[0] + '" aria-pressed="' + (D.cracks.sizes.indexOf(c[0]) >= 0) + '"><i style="background:' + CAM_COLOR[c[1]] + '"></i>' + c[0] + '</button>'; }).join('') + '</div>' +
+        '<label class="f" for="c-w">Where<input id="c-w" data-b="cracks.where" value="' + esc(D.cracks.where) + '" placeholder="Crag or gym"></label></div>';
+    } else if (D.kind === 'out') {
+      var det = D.areaId && DETAIL[D.areaId];
+      h += '<div class="exo"><div class="exo-head"><h3>Routes</h3><span class="mono">' + D.routes.filter(function (r) { return r.n; }).length + ' logged</span></div><label class="f" for="o-w">Where<input id="o-w" data-b="where" value="' + esc(D.where) + '"></label>' +
+        D.routes.map(function (r, i) { return '<div class="prob"><input id="r' + i + 'n" data-b="routes.' + i + '.n" value="' + esc(r.n) + '" placeholder="Route name" list="rlist" aria-label="Route name"><input id="r' + i + 'g" data-b="routes.' + i + '.g" value="' + esc(r.g) + '" placeholder="5.10b" aria-label="Grade"><div class="ctl"><div class="seg">' + ['Onsight', 'Flash', 'Redpoint', 'Fell', 'Top rope'].map(function (st) { return '<button type="button" data-act="rstyle" data-i="' + i + '" data-v="' + st + '" aria-pressed="' + (r.style === st) + '">' + st + '</button>'; }).join('') + '</div><button type="button" class="link" data-act="delroute" data-i="' + i + '">Remove</button></div></div>'; }).join('') +
+        '<div class="row" style="padding-top:.4rem"><button type="button" class="btn sm" data-act="addroute">Add a route</button></div>' + (det ? '<p class="small muted">Routes on your ' + esc(AREA[D.areaId].name) + ' tick list are marked sent or tried when you save.</p><datalist id="rlist">' + det.routes.map(function (r) { return '<option value="' + esc(r[1]) + '">'; }).join('') + '</datalist>' : '') + '</div>';
+    }
+    h += '<div class="exo"><div class="exo-head"><h3>Wrap up</h3><span class="mono">Effort × minutes = load</span></div><div class="grid2"><label class="f" for="d-mins">Minutes<input id="d-mins" type="number" inputmode="numeric" data-b="mins" value="' + esc(D.mins) + '" placeholder="' + (D.t0 ? Math.max(1, Math.round((Date.now() - D.t0) / 60000)) : '') + '"></label><div class="f"><span>Timer</span><button type="button" class="btn quiet" data-act="timer">' + (D.t0 ? 'Stop at <span class="clock" id="clock" style="margin-left:.4rem">' + timerLabel() + '</span>' : 'Start timer') + '</button></div></div>' +
+      '<div class="stack" style="gap:.3rem"><span class="small muted">How hard was it? 1 is nothing, 10 is everything you had.</span>' + scale('rpe', 1, 10, D.rpe, 'data-act="rpe"') + '</div>' +
+      '<label class="f" for="d-notes">Notes<textarea id="d-notes" data-b="notes" rows="3" placeholder="Anything that affects the next session: a tweaky finger, poor sleep, a cut set">' + esc(D.notes) + '</textarea></label></div>';
+    h += '<div class="savebar"><div class="savebar-in"><button class="btn grow" data-act="save">' + (D.id ? 'Save changes' : 'Save session') + '</button></div></div>';
+    return h;
+  }
+
+  /* ---------- Log ---------- */
+  function sessionDetail(s) {
+    var o = '';
+    if (s.ex && s.ex.length) o += '<div class="kv">' + s.ex.map(function (e) { return '<div><span><b>' + esc(e.n) + '</b>' + (e.target ? ' <span class="muted small">' + esc(e.target) + '</span>' : '') + (e.note ? '<small>' + esc(e.note) + '</small>' : '') + '</span><span>' + esc(exLine(e)) + '</span></div>'; }).join('') + '</div>';
+    if (s.probs && s.probs.length) o += '<div class="kv">' + s.probs.map(function (p) { return '<div><span><b>' + esc(p.n || 'Unnamed') + '</b> ' + esc(p.g || '') + (p.warm ? ' <span class="muted small">warm-up</span>' : '') + (p.note ? '<small>' + esc(p.note) + '</small>' : '') + '</span><span>' + (p.sent ? '✓ sent' : 'no send') + (p.tries ? ' · ' + p.tries + (p.tries === 1 ? ' try' : ' tries') : '') + '</span></div>'; }).join('') + '</div>';
+    if (s.laps && (s.laps.rounds || s.laps.grade)) o += '<p>Boulder laps: ' + esc(s.laps.rounds || '?') + ' rounds' + (s.laps.grade ? ' at ' + esc(s.laps.grade) : '') + (s.laps.pump ? ', pump ' + esc(s.laps.pump) : '') + '</p>';
+    if (s.trav && s.trav.sets && s.trav.sets.length) o += '<p>Traverse, ' + esc(s.trav.kind || 'endurance') + ': ' + s.trav.sets.map(function (x) { return esc(x.m) + ' min' + (x.p ? ' (pump ' + esc(x.p) + ')' : ''); }).join(' · ') + '</p>';
+    if (s.cracks && (s.cracks.laps || (s.cracks.sizes || []).length)) o += '<p>' + (s.cracks.laps ? esc(s.cracks.laps) + ' laps' : 'Cracks') + ((s.cracks.sizes || []).length ? ' · ' + esc(s.cracks.sizes.join(', ')) : '') + (s.cracks.where ? ' · ' + esc(s.cracks.where) : '') + '</p>';
+    if (s.routes && s.routes.length) o += '<div class="kv">' + s.routes.map(function (r) { return '<div><span><b>' + esc(r.n) + '</b> ' + esc(r.g || '') + '</span><span>' + esc(r.style || '') + '</span></div>'; }).join('') + '</div>';
+    if (s.where && !s.routes) o += '<p>' + esc(s.where) + '</p>';
+    if (s.notes) o += '<p class="note">' + esc(s.notes) + '</p>';
+    return o;
+  }
+  function viewLog() {
+    var all = allSessions(), f = ui.logFilter, list = f === 'all' ? all : all.filter(function (s) { return sKind(s) === f; });
+    var h = '<section class="hero"><span class="mono">' + all.length + ' sessions</span><h1>Log</h1></section>' + notes();
+    h += '<div class="card"><h3>Log a session</h3><div class="chips">' + [['today', 'Today’s session'], ['lift1', 'Lift 1'], ['lift3', 'Lift 3'], ['kpower', 'Kilter power'], ['kstrength', 'Kilter strength'], ['sat', 'Laps and traverse'], ['cracks', 'Cracks'], ['outside', 'Outside day'], ['other', 'Something else']].map(function (o) { return '<button type="button" class="chip" data-act="start" data-sid="' + o[0] + '">' + o[1] + '</button>'; }).join('') + '</div></div>';
+    h += '<div class="chips" role="group" aria-label="Filter">' + [['all', 'All']].concat(Object.keys(KIND_LABEL).map(function (k) { return [k, KIND_LABEL[k]]; })).map(function (o) { return '<button type="button" class="chip" data-act="logfilter" data-v="' + o[0] + '" aria-pressed="' + (f === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div>';
+    if (!list.length) return h + '<p class="muted">' + (all.length ? 'No sessions of this kind yet.' : 'Nothing logged yet. Start today’s session from the Today tab, or pick one above.') + '</p>';
+    var curMon = '';
+    list.forEach(function (s) {
+      var m = monOf(s.date);
+      if (m !== curMon) { curMon = m; var w = weekNo(parse(m)), st = weekStats(m); h += '<div class="wk-head"><h2>' + (w >= 1 && w <= 13 ? 'Week ' + w + ' · ' + PH[phaseOf(w)].l : 'Week of ' + esc(fmt(m))) + '</h2><span class="mono muted">' + (w >= 1 && w <= 13 ? esc(fmt(m)) + ' · ' : '') + (st.load ? 'load ' + Math.round(st.load).toLocaleString() : st.lifts + st.climbs + ' sessions') + '</span></div>'; }
+      var meta = []; if (s.mins) meta.push(s.mins + ' min'); if (s.rpe) meta.push('effort ' + s.rpe);
+      var sum = s.ex ? s.ex.length + ' exercises' : s.probs ? s.probs.filter(function (p) { return p.sent && !p.warm; }).length + ' of ' + s.probs.filter(function (p) { return !p.warm; }).length + ' sent' : s.trav && s.trav.sets ? r1(s.trav.sets.reduce(function (n, x) { return n + (num(x.m) || 0); }, 0)) + ' min traverse' : s.cracks && s.cracks.laps ? s.cracks.laps + ' laps' : s.routes ? s.routes.length + ' routes' : s.where || '';
+      h += '<details class="entry"><summary><span class="d">' + esc(fmt(s.date, { weekday: 'short' })) + '<small>' + esc(fmt(s.date)) + '</small></span><span class="sum-main"><b>' + esc(s.title) + '</b><span class="small muted">' + esc([sum].concat(meta).filter(Boolean).join(' · ')) + '</span></span><span class="pill">' + (KIND_LABEL[sKind(s)] || 'Other') + '</span></summary><div class="body">' + sessionDetail(s) +
+        '<div class="row"><button class="btn quiet sm" data-act="edit" data-id="' + s.id + '">Edit</button><button class="link' + (ui.armed === s.id ? ' armed' : '') + '" data-act="del" data-id="' + s.id + '">' + (ui.armed === s.id ? 'Tap again to delete' : 'Delete') + '</button></div></div></details>';
+    });
+    return h;
+  }
+
+  /* ---------- Progress ---------- */
+  function barChart(weeks, series, opt) {
+    var cur = weekNo(today0()), max = opt.max || 1;
+    weeks.forEach(function (x) { series.forEach(function (s) { max = Math.max(max, s.get(x.st) || 0); }); });
+    if (!opt.max) { var mag = Math.pow(10, Math.floor(Math.log10(max))); max = Math.ceil(max / mag) * mag; if (max / mag > 5 && max % (2 * mag)) max += mag; }
+    var cols = 'grid-template-columns:repeat(' + weeks.length + ',1fr)';
+    var h = '<div class="chart" style="' + cols + '" role="img" aria-label="' + esc(opt.label) + '"><div class="gl" style="bottom:100%"><span>' + (opt.fmt ? opt.fmt(max) : max) + '</span></div><div class="gl" style="bottom:50%"><span>' + (opt.fmt ? opt.fmt(max / 2) : max / 2) + '</span></div>';
+    h += weeks.map(function (x) {
+      var tip = (x.w ? 'Week ' + x.w + ' · ' + PH[x.ph].l + '\n' : '') + 'Week of ' + fmt(x.monS) + '\n' + series.map(function (s) { var v = s.get(x.st); return s.name + ': ' + (v ? (opt.tipFmt ? opt.tipFmt(v) : v) : '–'); }).join('\n');
+      return '<div class="col' + (series.length === 1 ? ' one' : '') + (x.w === cur || (!x.w && x.monS === ymd(monday(today0()))) ? ' cur' : '') + '" tabindex="0" data-tip="' + esc(tip) + '">' + series.map(function (s) { var v = s.get(x.st) || 0; return '<i class="' + s.cls + '" style="height:' + (v / max * 100) + '%"></i>'; }).join('') + '</div>';
+    }).join('') + '</div><div class="xlab" style="' + cols + '">' + weeks.map(function (x) { return '<span' + (x.w === cur ? ' class="cur"' : '') + '>' + (x.w || parse(x.monS).getDate()) + '</span>'; }).join('') + '</div>';
+    if (series.length > 1) h += '<div class="legend">' + series.map(function (s) { return '<span><i class="' + s.cls + '" style="background:var(--' + (s.cls === 'a' ? 's1' : 's2') + ')"></i>' + s.name + '</span>'; }).join('') + '</div>';
+    return h;
+  }
+  function mini(title, weeks, get, unit, o) {
+    o = o || {};
+    var pts = []; weeks.forEach(function (x, i) { var v = get(x.st, x); if (v != null && v !== 0 || (v === 0 && o.zero)) pts.push({ i: i, v: v, x: x }); });
+    var body = '<div class="spark"></div>', val = '–', delta = '';
+    if (pts.length) {
+      var vs = pts.map(function (p) { return p.v; }), lo = Math.min.apply(null, vs), hi = Math.max.apply(null, vs), span = hi - lo || 1, n = Math.max(3, pts[pts.length - 1].i);
+      var xy = pts.map(function (p) { return [p.i / n * 100, 34 - (p.v - lo) / span * 28]; });
+      var line = xy.map(function (p, i) { return (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1); }).join(' ');
+      body = '<div class="spark" role="img" aria-label="' + esc(title) + ' by week">' + (pts.length > 1 ? '<svg viewBox="0 0 100 40" preserveAspectRatio="none"><path class="area" d="' + line + ' L' + xy[xy.length - 1][0].toFixed(1) + ' 40 L' + xy[0][0].toFixed(1) + ' 40 Z"/><path d="' + line + '"/></svg>' : '') +
+        pts.map(function (p, i) { return '<span class="pt' + (i === pts.length - 1 ? ' end' : '') + '" tabindex="0" style="left:' + xy[i][0].toFixed(1) + '%;top:' + (xy[i][1] / 40 * 100).toFixed(1) + '%" data-tip="' + esc((p.x.w ? 'Week ' + p.x.w : fmt(p.x.monS)) + ': ' + r1(p.v) + (unit ? ' ' + unit : '')) + '"></span>'; }).join('') + '</div>';
+      var last = pts[pts.length - 1].v, first = pts[0].v, d = r1(last - first);
+      val = (o.plus && last > 0 ? '+' : '') + r1(last);
+      delta = pts.length > 1 ? '<span class="d' + (o.good && d * o.good > 0 ? ' up' : '') + '">' + (d > 0 ? '+' : '') + d + ' since week ' + (pts[0].x.w || 1) + '</span>' : '<span class="d">1 week logged</span>';
+    }
+    return '<div class="mini"><span class="t">' + esc(title) + '</span><span class="v">' + val + '<small>' + esc(unit || '') + '</small></span>' + body + delta + '</div>';
+  }
+  function viewProgress() {
+    var weeks = chartWeeks(), monS = ymd(monday(today0())), ws = weekStats(monS), items = S.kilter.items.filter(function (x) { return x.list !== 'Warm-up circuit'; });
+    var sent = items.filter(function (x) { return x.status === 'Sent'; }).length;
+    var h = '<section class="hero"><span class="mono">' + (blockStart() ? 'Week ' + Math.max(1, Math.min(13, weekNo(today0()))) + ' of 13' : 'Last 8 weeks') + '</span><h1>Progress</h1><p class="muted small">Deload and test weeks dip by design. Compare Build, Strength and Peak weeks for the real trend.</p></section>' + notes();
+    h += '<div class="tiles"><div class="tile"><b>' + ws.lifts + '<small> /2</small></b><span>lifts this week</span></div><div class="tile"><b>' + ws.climbs + '<small> /4</small></b><span>climbs this week</span></div><div class="tile"><b>' + sent + '<small> /' + items.length + '</small></b><span>board problems sent</span></div></div>';
+    h += '<section class="stack"><div class="sec-head"><h2>Sessions done</h2><span class="mono">Per week</span></div><div class="card">' + barChart(weeks, [{ name: 'Lifts, of 2', cls: 'a', get: function (s) { return s.lifts; } }, { name: 'Climbs, of 4', cls: 'b', get: function (s) { return s.climbs; } }], { max: 4, label: 'Lifts and climbs done in each week' }) + '</div></section>';
+    h += '<section class="stack"><div class="sec-head"><h2>Training load</h2><span class="mono">Effort × minutes</span></div><div class="card">' + barChart(weeks, [{ name: 'Load', cls: 'a', get: function (s) { return s.load; } }], { label: 'Weekly training load', fmt: function (v) { return v >= 1000 ? r1(v / 1000) + 'k' : v; }, tipFmt: function (v) { return Math.round(v).toLocaleString(); } }) + '</div></section>';
+    var lifts = [['Pull-up', 'Pull-up, added', true], ['Bench press', 'Bench press'], ['Seated dumbbell shoulder press', 'Shoulder press, per hand'], ['Barbell row', 'Barbell row'], ['Romanian deadlift', 'Romanian deadlift, per hand'], ['High-box step-up', 'Step-up, per hand']];
+    h += '<section class="stack"><div class="sec-head"><h2>Top working weight</h2><span class="mono">lb, by week</span></div><div class="minis">' + lifts.map(function (l) { return mini(l[1], weeks, function (s) { return s.top[l[0]] != null ? s.top[l[0]] : null; }, 'lb', { plus: l[2], good: 1 }); }).join('') + '</div><p class="small muted">A lower number is not always a step back: the first week of a block often starts too heavy, and reps count before weight does.</p></section>';
+    h += '<section class="stack"><div class="sec-head"><h2>Traverse</h2><span class="mono">Minutes on the wall</span></div><div class="card">' + barChart(weeks, [{ name: 'Total minutes', cls: 'a', get: function (s) { return s.trav; } }, { name: 'Longest set', cls: 'b', get: function (s) { return s.travMax; } }], { label: 'Traverse minutes per week, total and longest set', tipFmt: function (v) { return r1(v) + ' min'; } }) + '</div></section>';
+    h += '<section class="stack"><div class="sec-head"><h2>Recovery</h2><span class="mono">Weekly check-in averages</span></div><div class="minis">' + mini('Sleep', weeks, function (s) { return s.sleep; }, 'h', { good: 1 }) + mini('Energy, 1–5', weeks, function (s) { return s.energy; }, '', { good: 1 }) + mini('Soreness, 0–5', weeks, function (s) { return s.sore; }, '', { zero: true, good: -1 }) + mini('Worst pain, 0–10', weeks, function (s) { return s.pain; }, '', { zero: true, good: -1 }) + mini('Body weight', weeks, function (s) { return s.bw; }, 'lb') + '</div></section>';
+    // Board pyramid
+    var grades = {}; items.forEach(function (x) { var g = x.g || '?'; if (!grades[g]) grades[g] = { s: 0, p: 0 }; if (x.status === 'Sent') grades[g].s++; else grades[g].p++; });
+    var gk = Object.keys(grades).sort(function (a, b) { return (parseFloat(b.slice(1)) + (b.indexOf('+') > 0 ? .5 : 0)) - (parseFloat(a.slice(1)) + (a.indexOf('+') > 0 ? .5 : 0)); });
+    var gmax = Math.max.apply(null, gk.map(function (g) { return grades[g].s + grades[g].p; }).concat([1]));
+    h += '<section class="stack"><div class="sec-head"><h2>Board problems</h2><span class="mono">' + sent + ' sent · ' + (items.length - sent) + ' projecting</span></div>';
+    if (!items.length) h += '<p class="muted">Problems you log in board sessions collect here by grade.</p>';
+    else {
+      h += '<div class="card"><div class="pyr" role="img" aria-label="Problems sent and projecting at each grade">' + gk.map(function (g) { var x = grades[g]; return '<span class="g">' + esc(g) + '</span><div class="bar" tabindex="0" data-tip="' + esc(g + '\nSent: ' + x.s + '\nProjecting: ' + x.p) + '">' + (x.s ? '<i style="width:' + (x.s / gmax * 100) + '%"></i>' : '') + (x.p ? '<i class="pj" style="width:' + (x.p / gmax * 100) + '%"></i>' : '') + '</div><span class="n">' + x.s + ' / ' + (x.s + x.p) + '</span>'; }).join('') + '</div><div class="legend"><span><i style="background:var(--s1)"></i>Sent</span><span><i style="border:1px solid var(--s1);background:repeating-linear-gradient(135deg,var(--s1) 0 2px,transparent 2px 5px)"></i>Projecting</span></div></div>';
+      var proj = items.filter(function (x) { return x.status !== 'Sent'; });
+      h += '<details class="more"><summary>Show the ' + proj.length + ' projects and their notes</summary><div class="stack">' + proj.map(function (x) { return '<details class="entry"><summary><span class="d">' + esc(x.g || '') + '</span><span class="sum-main"><b>' + esc(x.n) + '</b><span class="small muted">' + esc([x.style, x.list, x.sessions ? x.sessions + (x.sessions === 1 ? ' session' : ' sessions') : ''].filter(Boolean).join(' · ')) + '</span></span><span class="pill dash">Project</span></summary><div class="body"><p class="note">' + esc(x.notes || 'No notes yet.') + '</p></div></details>'; }).join('') + '</div></details>';
+    }
+    h += '</section>';
+    h += '<section class="stack"><div class="sec-head"><h2>Tests</h2><span class="mono">Weeks 1, 5, 9 and 13</span></div><div class="card scrollx"><table class="tests"><thead><tr><th>Test</th><th>Wk 1</th><th>Wk 5</th><th>Wk 9</th><th>Wk 13</th></tr></thead><tbody>' + TESTS.map(function (t) { var r = S.tests.rows[t[0]] || {}; return '<tr><td>' + esc(t[1]) + '</td>' + ['w1', 'w5', 'w9', 'w13'].map(function (k) { return '<td><input id="t-' + t[0] + k + '" data-test="' + t[0] + '.' + k + '" value="' + esc(r[k] || '') + '" aria-label="' + esc(t[1] + ', ' + k.replace('w', 'week ')) + '"></td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div><p class="small muted">Estimate lifting rep maxes from your working sets in week 1 instead of testing to failure.</p></section>';
+    return h;
+  }
+
+  /* ---------- Areas ---------- */
+  function viewAreas() {
+    var cur = curArea();
+    return '<section class="hero"><span class="mono">' + AREAS.length + ' areas</span><h1>Areas</h1><p class="muted small">Each area is rated on what its rock asks of you. Choose one and the block swaps in the sessions it rewards. Three carry the tick lists and trip plans from your trip boards; the rest follow your <a href="' + URL.gear + '">Climbing Gear</a> pages.</p></section>' + notes() +
+      '<div class="cards">' + AREAS.map(function (a) { return areaCard(a, cur && cur.id === a.id); }).join('') + '</div>';
+  }
+  function viewArea(id) {
+    var a = AREA[id]; if (!a) return viewAreas();
+    var d = DETAIL[id], cur = curArea(), active = cur && cur.id === id, st = active ? S.settings : {};
+    var h = '<section class="hero"><a class="small" href="#areas">All areas</a><span class="mono">' + esc(a.st) + ' · ' + esc(a.rock) + '</span><h1>' + esc(a.name) + '</h1><p class="muted small">' + esc(a.style) + '</p></section>' + notes();
+    h += '<section class="card' + (active ? ' key' : '') + '"><div class="row between"><h3>' + (active ? 'You’re training for this area' : 'Train for this area') + '</h3>' + (active ? '<span class="pill solid">Active</span>' : '') + '</div>';
+    if (active) h += '<div class="grid2"><label class="f" for="t-start">Trip starts<input type="date" id="t-start" data-trip="start" value="' + esc(st.start || '') + '"></label><label class="f" for="t-end">Trip ends<input type="date" id="t-end" data-trip="end" value="' + esc(st.end || '') + '"></label></div><p class="small muted">' + esc(specificity(monday(today0())).label || '') + '</p><div class="row"><a class="btn" href="#plan">See the plan</a><button class="link" data-act="untrain">Stop training for this area</button></div>';
+    else h += '<p class="small muted">The plan switches its key sessions to suit ' + esc(a.short || a.name) + '. Your log stays as it is.</p><div class="row"><button class="btn" data-act="train" data-id="' + id + '">Train for ' + esc(a.short || a.name) + '</button></div>';
+    h += '</section>';
+    h += '<section class="stack"><div class="sec-head"><h2>What the rock asks for</h2></div><div class="card"><div class="bars">' + DIMS.map(function (dm, i) {
+      var p = ''; for (var k = 1; k <= 5; k++) p += '<i' + (k <= a.s[i] ? ' class="on"' : '') + '></i>';
+      return '<div class="bar"><span>' + dm[1] + '</span><div class="pips" role="img" aria-label="' + a.s[i] + ' out of 5">' + p + '</div><span class="val">' + a.s[i] + '/5</span></div>';
+    }).join('') + '</div></div></section>';
+    var sw = ORDER.normal.map(function (sid, i) { var x = areaSwap(a, sid, 'build'); return x ? { d: DOW[i], sid: sid, x: x } : null; }).filter(Boolean);
+    h += '<section class="stack"><div class="sec-head"><h2>What it changes in your week</h2></div><div class="card" style="gap:0">' + (sw.length ? sw.map(function (o) {
+      var base = (LIFT[o.sid] || SESS[o.sid](1)).t, to = o.x.sid ? SESS[o.x.sid](1).t : o.x.force ? 'Laps and ' + o.x.force + ' traverse, every week' : base;
+      return '<div style="padding:.55rem 0;border-top:1px solid var(--rule)"><div class="row between"><span><b class="dow" style="display:inline;font-size:1.15rem">' + o.d + '</b> ' + (o.x.sid || o.x.force ? esc(base) + ' becomes <b>' + esc(to) + '</b>' : '<b>' + esc(base) + '</b>') + '</span>' + (o.x.sid ? '<span class="pill solid">Swap</span>' : '') + '</div>' + (o.x.add ? '<p class="small muted">' + esc(o.x.add) + '</p>' : '') + '</div>';
+    }).join('') : '<p class="small muted">Nothing: the block is already built for this style.</p>') + '</div><p class="small muted">Swaps apply in Build and Strength weeks, from 8 weeks before the trip. Deload, Peak and Test weeks keep the block as written.</p></section>';
+    if (!d) { h += '<section class="card"><h3>Trip plan</h3><p class="small muted">No tick list for this area yet. Its rack check is on your <a href="' + URL.gear + '">Climbing Gear</a> board, and the <a href="' + URL.camp + '">camping checklist</a> covers camp.</p></section>'; return h; }
+    if (d.todo) {
+      var ck = S.checks[id] || {};
+      h += '<section class="stack"><div class="sec-head"><h2>Before you go</h2><span class="mono">' + d.todo.filter(function (_, i) { return ck[i]; }).length + ' / ' + d.todo.length + '</span></div><div class="card" style="gap:0">' + d.todo.map(function (t, i) {
+        return '<label class="check' + (ck[i] ? ' on' : '') + '" for="ck-' + i + '"><input type="checkbox" id="ck-' + i + '" data-check="' + id + '" data-i="' + i + '"' + (ck[i] ? ' checked' : '') + '><span class="stack" style="gap:.1rem"><b>' + esc(t[0]) + '</b><span class="small muted">' + esc(t[1]) + '</span></span><span class="pill' + (t[2] === 'Optional' ? '' : t[2] === 'Confirm' ? ' dash' : ' solid') + '">' + t[2] + '</span></label>';
+      }).join('') + '</div></section>';
+    }
+    h += '<section class="stack"><div class="sec-head"><h2>Rack to carry</h2><a href="' + URL.gear + '">Your full rack</a></div><div class="card"><p class="small muted">' + esc(d.rackNote) + '</p><div class="cams">' + d.carry.map(function (c) { return '<div class="cam"><i style="background:' + CAM_COLOR[c[0]] + '"></i><b>' + (c[0].charAt(0) === '.' ? c[0] : '#' + c[0]) + '</b><span>' + esc(c[1]) + '</span></div>'; }).join('') + '</div></div></section>';
+    h += '<section class="stack"><div class="sec-head"><h2>Know before you rack</h2></div><div class="card" style="gap:0">' + d.know.map(function (k) { return '<p class="small" style="padding:.5rem 0;border-top:1px solid var(--rule)">' + esc(k) + '</p>'; }).join('') + '</div></section>';
+    if (d.camp) h += '<section class="stack"><div class="sec-head"><h2>Camp</h2><a href="' + URL.camp + '">Camping checklist</a></div><div class="card"><div class="facts">' + d.camp.map(function (f) { return '<div class="fact"><b>' + esc(f[0]) + '</b><span class="muted">' + esc(f[1]) + '</span></div>'; }).join('') + '</div></div></section>';
+    var tk = S.ticks[id] || {}, tf = ui.tf, tc = tickCounts(id), hasSport = d.routes.some(function (r) { return r[3] === 'S'; });
+    var rows = d.routes.filter(function (r) { var stt = tk[slug(r[1])] || 'w'; return (tf.band === 'all' || band(r[0]) === tf.band) && (tf.type === 'all' || r[3] === tf.type) && (tf.status === 'all' || stt === tf.status); });
+    function seg(key, opts) { return '<div class="seg" role="group">' + opts.map(function (o) { return '<button type="button" data-act="tf" data-k="' + key + '" data-v="' + o[0] + '" aria-pressed="' + (tf[key] === o[0]) + '">' + o[1] + '</button>'; }).join('') + '</div>'; }
+    h += '<section class="stack" id="ticks"><div class="sec-head"><h2>Tick list</h2><span class="mono">' + tc.sent + ' sent · ' + tc.tried + ' tried · ' + tc.total + ' routes</span></div><div class="row">' + seg('band', [['all', 'All'], ['9', '≤5.9'], ['10', '5.10'], ['11', '5.11'], ['12', '5.12']]) + (hasSport ? seg('type', [['all', 'All'], ['S', 'Sport'], ['T', 'Trad']]) : '') + seg('status', [['all', 'All'], ['w', 'To try'], ['t', 'Tried'], ['s', 'Sent']]) + '</div>';
+    if (!rows.length) h += '<p class="muted">No routes match these filters.</p>';
+    ['9', '10', '11', '12'].forEach(function (b) {
+      var rs = rows.filter(function (r) { return band(r[0]) === b; }); if (!rs.length) return;
+      h += '<div class="band"><h3>' + BAND_LABEL[b] + '<small>' + rs.length + (rs.length === 1 ? ' route' : ' routes') + '</small></h3>' + rs.map(function (r) {
+        var key = slug(r[1]), stt = tk[key] || 'w';
+        return '<div class="route"><span class="g">' + esc(r[0]) + '</span><span class="n"><b>' + esc(r[1]) + '</b><span>' + esc(r[2]) + (hasSport ? ' · ' + (r[3] === 'S' ? 'Sport' : 'Trad') : '') + '</span>' + (r[4] ? '<em>' + esc(r[4]) + '</em>' : '') + '</span><div class="seg status" role="group" aria-label="Status"><button type="button" data-act="tick" data-id="' + id + '" data-key="' + key + '" data-v="t" aria-pressed="' + (stt === 't') + '">Tried</button><button type="button" data-act="tick" data-id="' + id + '" data-key="' + key + '" data-v="s" aria-pressed="' + (stt === 's') + '">Sent</button></div></div>';
+      }).join('') + '</div>';
+    });
+    h += '</section><p class="foot">Routes, rack and camp notes come from your <a href="' + d.board + '">' + esc(a.name) + ' trip board</a>' + (d.extra ? d.extra.map(function (x) { return ' and your <a href="' + x[1] + '">' + esc(x[0]) + '</a>'; }).join('') : '') + '. Check route gear beta before racking up.</p>';
+    return h;
+  }
+
+  /* ---------- Data ---------- */
+  function viewAccount() {
+    var n = allSessions().length, where = cloud() ? (sess ? 'Synced to your account, ' + esc(sess.email || '') + '. This device also keeps a copy.' : 'Sign in on the Today tab to sync.') : 'Saved in this browser on this device only. It does not sync to your other devices, and clearing site data erases it, so export a backup now and then.';
+    return '<section class="hero"><span class="mono">' + n + ' sessions</span><h1>Data</h1><p class="muted small">' + where + '</p></section>' + notes() + (ui.dataMsg ? '<p class="msg" role="status">' + esc(ui.dataMsg) + '</p>' : '') +
+      '<section class="card"><h3>Back up</h3><p class="small muted">Downloads everything in the app as one file: sessions, check-ins, plan notes, problems, tests, tick lists and settings.</p><div class="row"><button class="btn" data-act="export">Export a backup</button></div></section>' +
+      '<section class="card"><h3>Import</h3><p class="small muted">Loads a backup or history file. Items in the file replace the same weeks and lists here; everything else stays.</p><label class="f" for="imp">Choose a file<input type="file" id="imp" accept=".json,application/json"></label></section>' +
+      '<section class="card"><h3>Move to another device</h3><p class="small muted">Export a backup here, send the file to the other device, and import it there.' + (cloud() ? '' : ' Automatic sync can be switched on later by adding a database to config.js.') + '</p></section>' +
+      (cloud() && sess ? '<section class="card"><h3>Account</h3><div class="row"><button class="btn quiet" data-act="signout">Sign out</button></div><p class="small muted">Signing out removes the copy on this device. Your account keeps everything.</p></section>' : '') +
+      '<section class="card"><h3>Start over</h3><p class="small muted">Erases everything in the app on this device' + (cloud() && sess ? ' and in your account' : '') + '.</p><div class="row"><button class="link' + (ui.armed === 'wipe' ? ' armed' : '') + '" data-act="wipe">' + (ui.armed === 'wipe' ? 'Tap again to erase everything' : 'Erase all data') + '</button></div></section>';
+  }
+  /* ---------- Drafts ---------- */
+  function planParts(c, coach) {
+    return (c.parts || []).map(function (p) { var x = ((coach || {}).parts || {})[p[0]] || {}; return [p[0], x.target || p[1], p[2], p[3]]; });
+  }
+  function newDraft(dateS, sid) {
+    var d = parse(dateS), mon = monday(d), week = planWeek(mon), slot = week[(d.getDay() + 6) % 7], w = weekNo(d), c, coach = null, a = curArea();
+    if (!sid || sid === 'today' || sid === slot.sid || sid === slot.base) {
+      if (slot.c.kind === 'rest') { c = { t: 'Session', kind: 'other', tags: [], focus: '' }; sid = 'other'; }
+      else { c = slot.c; sid = slot.sid; coach = slot.swapped ? null : slot.coach; }
+    } else if (sid === 'other') c = { t: 'Session', kind: 'other', tags: [], focus: '' };
+    else {
+      c = LIFT[sid] ? liftContent(sid, w, weekType(ymd(mon))) : SESS[sid](w);
+      var m = week.filter(function (s) { return s.base === sid && !s.swapped; })[0]; coach = m ? m.coach : null;
+    }
+    var D = { id: null, date: dateS, sid: sid, title: c.t, kind: c.kind, tags: c.tags || [], w: w, focus: c.focus, coachFocus: coach && coach.focus || '', mins: '', rpe: '', notes: '', t0: null, areaId: a ? a.id : null };
+    if (c.kind === 'lift') D.ex = c.rows.map(function (r) {
+      var x = ((coach || {}).ex || {})[r.n] || {}, last = lastEx(r.n, dateS), t = x.target || r.target, p = parseTarget(t);
+      return { n: r.n, target: t, lo: p.lo || r.lo, hi: p.hi || r.hi, rest: r.rest, restSec: r.restSec, cue: r.cue, wl: r.wl, w: x.w != null ? x.w : last && last.e.w != null ? last.e.w : '', sets: Array(p.sets || r.sets).fill(''), rir: '', note: '', coach: x.coach || '', last: last };
+    });
+    if (c.kind === 'board') {
+      D.probs = []; D.parts = planParts(c, coach);
+      var main = c.parts.filter(function (p) { return p[3]; }).pop(); D.restSec = main ? main[3] : 180;
+      D.sugg = S.kilter.items.filter(function (x) { return x.status !== 'Sent' && x.list !== 'Warm-up circuit'; }).slice(0, 14).map(function (x) { return { n: x.n, g: x.g }; });
+    }
+    if (c.kind === 'endur') {
+      var tp = planParts(c, coach).filter(function (p) { return p[0] === 'Traverse' || p[0] === 'Mileage' || p[0] === 'Links'; })[0];
+      D.laps = { rounds: '', grade: '', pump: '' }; D.trav = { kind: c.trav || 'endurance', sets: [{ m: '', p: '' }] }; D.travTarget = tp ? tp[1] : ''; D.restSec = tp ? tp[3] : 90;
+    }
+    if (c.kind === 'crack') D.cracks = { laps: 0, sizes: [], where: '' };
+    if (c.kind === 'out') { D.routes = [{ n: '', g: '', style: '' }]; D.where = a ? a.name : ''; }
+    return D;
+  }
+  function draftFromSession(s) {
+    var D = JSON.parse(JSON.stringify(s)), w = weekNo(parse(s.date));
+    D.kind = sKind(s); D.w = w; D.t0 = null; D.origMon = monOf(s.date);
+    D.mins = s.mins != null ? s.mins : ''; D.rpe = s.rpe != null ? s.rpe : ''; D.notes = s.notes || ''; D.tags = s.tags || [];
+    if (D.kind === 'lift') {
+      var rows = {}; ['lift1', 'lift3'].forEach(function (k) { liftRows(k, w >= 1 && w <= 13 ? w : 1).forEach(function (r) { rows[r.n] = r; }); });
+      D.ex = (D.ex || []).map(function (e) { var r = rows[e.n] || {}, p = parseTarget(e.target); return Object.assign({ lo: p.lo, hi: p.hi, restSec: r.restSec || 120, cue: r.cue || '', wl: e.wl != null ? e.wl : (r.wl != null ? r.wl : 'lb'), rir: '', note: '', w: '' }, e, { sets: (e.sets || []).map(function (v) { return v == null ? '' : v; }), last: lastEx(e.n, s.date, s.id) }); });
+    }
+    if (D.kind === 'board') { D.probs = D.probs || []; D.parts = []; D.sugg = []; D.restSec = 180; }
+    if (D.kind === 'endur') { D.laps = Object.assign({ rounds: '', grade: '', pump: '' }, D.laps || {}); D.trav = D.trav || { kind: 'endurance', sets: [{ m: '', p: '' }] }; D.restSec = 90; }
+    if (D.kind === 'crack') D.cracks = Object.assign({ laps: 0, sizes: [], where: '' }, D.cracks || {});
+    if (D.kind === 'out') { D.routes = D.routes || [{ n: '', g: '', style: '' }]; D.where = D.where || ''; }
+    return D;
+  }
+  function keepDraft() { try { if (ui.D) localStorage.setItem('approach-draft', JSON.stringify(ui.D)); else localStorage.removeItem('approach-draft'); } catch (e) { /* drafts are a convenience */ } }
+  function setPath(o, path, v) { var p = path.split('.'); for (var i = 0; i < p.length - 1; i++) o = o[p[i]]; o[p[p.length - 1]] = v; }
+  function saveDraft() {
+    var D = ui.D, a = curArea();
+    if (!D.date) D.date = ymd(today0());
+    var mins = num(D.mins); if (mins == null && D.t0) mins = Math.max(1, Math.round((Date.now() - D.t0) / 60000));
+    var x = { date: D.date, sid: D.sid, title: (D.title || 'Session').slice(0, 80), kind: D.kind, tags: D.tags, mins: mins, rpe: num(D.rpe), notes: String(D.notes || '').slice(0, 4000), areaId: D.areaId || null };
+    if (D.kind === 'lift') x.ex = D.ex.filter(function (e) { return e.sets.some(function (v) { return v !== ''; }); }).map(function (e) { return { n: e.n, target: e.target || '', wl: e.wl || '', w: num(e.w), sets: e.sets.filter(function (v) { return v !== ''; }).map(Number), rir: e.rir === '' ? null : +e.rir, note: e.note || '' }; });
+    if (D.kind === 'board') x.probs = D.probs.filter(function (p) { return p.n || p.tries; }).map(function (p) { return { n: p.n || 'Unnamed', g: p.g || '', tries: +p.tries || 0, sent: !!p.sent, note: p.note || '', warm: !!p.warm }; });
+    if (D.kind === 'endur') { x.laps = D.laps; x.trav = { kind: D.trav.kind, sets: D.trav.sets.filter(function (s) { return s.m !== ''; }) }; }
+    if (D.kind === 'crack') x.cracks = D.cracks;
+    if (D.kind === 'out') { x.routes = D.routes.filter(function (r) { return r.n; }); x.where = D.where || ''; }
+    var id = D.id || 's' + Date.now().toString(36), monS = monOf(D.date);
+    if (D.origMon && D.origMon !== monS && S.weeks[D.origMon]) { delete S.weeks[D.origMon].s[id]; saveWeek(D.origMon); }
+    weekDoc(monS).s[id] = x; saveWeek(monS);
+    if (D.kind === 'board' && !D.id) {
+      x.probs.forEach(function (p) {
+        if (p.warm || !p.n || p.n === 'Unnamed') return;
+        var it = S.kilter.items.filter(function (i) { return i.n.toLowerCase() === p.n.toLowerCase(); })[0];
+        if (!it) { it = { n: p.n, g: p.g, list: 'Logged', status: 'Projecting', sessions: 0, first: fmt(D.date), notes: '' }; S.kilter.items.push(it); }
+        it.sessions = (+it.sessions || 0) + 1; if (p.g && !it.g) it.g = p.g;
+        if (p.sent) { it.status = 'Sent'; it.sent = it.sent || fmt(D.date); }
+        if (p.note) it.notes = fmt(D.date) + ', ' + p.tries + (p.tries === 1 ? ' try' : ' tries') + ': ' + p.note + (it.notes ? '\n' + it.notes : '');
+      });
+      persist('kilter', S.kilter);
+    }
+    if (D.kind === 'out' && D.areaId && DETAIL[D.areaId]) {
+      var r = Object.assign({}, S.ticks[D.areaId] || {}), keys = {}, changed = false;
+      DETAIL[D.areaId].routes.forEach(function (q) { keys[slug(q[1])] = 1; });
+      x.routes.forEach(function (q) { var k = slug(q.n); if (!keys[k]) return; var v = ['Onsight', 'Flash', 'Redpoint'].indexOf(q.style) >= 0 ? 's' : 't'; if (r[k] !== 's' && r[k] !== v) { r[k] = v; changed = true; } });
+      if (changed) { S.ticks[D.areaId] = r; persist('ticks_' + D.areaId, { r: r }); }
+    }
+    ui.D = null; keepDraft(); ui.rest = null; drawRest();
+    toast(D.id ? 'Changes saved' : 'Session saved');
+    location.hash = '#log';
+  }
+
+  /* ---------- Rendering ---------- */
+  function route() { var h = (location.hash || '#home').slice(1); return h || 'home'; }
+  function render() {
+    var r = route(), v = r.indexOf('area-') === 0 ? 'areas' : r;
+    if (['home', 'plan', 'session', 'log', 'progress', 'areas', 'account'].indexOf(v) < 0) { v = 'home'; r = 'home'; }
+    if (v === 'session' && !ui.D) {
+      try { var raw = localStorage.getItem('approach-draft'); if (raw && mode !== 'loading') ui.D = JSON.parse(raw); } catch (e) { /* no draft */ }
+      if (!ui.D && mode !== 'loading') { v = 'home'; r = 'home'; }
+    }
+    var a = r.indexOf('area-') === 0 ? AREA[r.slice(5)] : curArea();
+    document.body.setAttribute('data-area', a ? a.id : '');
+    var tab = v === 'session' ? 'log' : v;
+    document.querySelectorAll('#tabs a').forEach(function (el) { if (el.dataset.v === tab) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current'); });
+    var w = weekNo(today0()), ctx = document.getElementById('ctx');
+    if (ctx) ctx.textContent = 'Data';
+    app.innerHTML = r.indexOf('area-') === 0 ? viewArea(r.slice(5)) : v === 'areas' ? viewAreas() : v === 'plan' ? viewPlan() : v === 'session' ? viewSession() : v === 'log' ? viewLog() : v === 'progress' ? viewProgress() : v === 'account' ? viewAccount() : viewHome();
+    saveMsg = '';
+  }
+  function renderKeep() { var y = window.scrollY; render(); window.scrollTo(0, y); }
+  var toastT = null;
+  function toast(msg) { var el = document.getElementById('toast'); if (!el) return; el.textContent = msg; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(function () { el.hidden = true; }, 2400); }
+  function drawRest() {
+    var el = document.getElementById('rest'); if (!el) return;
+    if (!ui.rest) { el.hidden = true; return; }
+    var left = Math.max(0, Math.ceil((ui.rest.end - Date.now()) / 1000)), frac = Math.max(0, (ui.rest.end - Date.now()) / (ui.rest.total * 1000)), C = 2 * Math.PI * 16;
+    el.hidden = false; el.classList.toggle('done', left === 0);
+    el.innerHTML = '<svg viewBox="0 0 40 40" aria-hidden="true"><circle class="trk" cx="20" cy="20" r="16"/><circle class="arc" cx="20" cy="20" r="16" stroke-dasharray="' + C.toFixed(1) + '" stroke-dashoffset="' + (C * (1 - frac)).toFixed(1) + '"/></svg><span><b>' + (left ? Math.floor(left / 60) + ':' + pad(left % 60) : 'Go') + '</b><small>' + (left ? 'Rest. Tap to stop' : 'Rest is over') + '</small></span>';
+    if (left === 0 && Date.now() - ui.rest.end > 6000) { ui.rest = null; el.hidden = true; }
+  }
+  setInterval(function () {
+    if (ui.rest) drawRest();
+    var c = document.getElementById('clock'); if (c && ui.D && ui.D.t0) c.textContent = timerLabel();
+  }, 250);
+
+  /* ---------- Events ---------- */
+  window.addEventListener('hashchange', function () { ui.armed = null; if (route() !== 'plan') ui.openDay = null; ui.ciEdit = false; ui.ci = null; render(); window.scrollTo(0, 0); });
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest('[data-act]'); if (!el) return;
+    var act = el.dataset.act, D = ui.D, i = +el.dataset.i, v = el.dataset.v, st = S.settings;
+    switch (act) {
+      case 'start-block': S.settings = Object.assign({ wt: {} }, st || {}, { block: ymd(monday(today0())) }); saveSettings(); render(); break;
+      case 'sample-on': ui.sample = true; ui.real = S; makeSample(); render(); window.scrollTo(0, 0); break;
+      case 'sample-off': ui.sample = false; S = ui.real || blank(); touch(); render(); break;
+      case 'start': ui.D = newDraft(el.dataset.date || ymd(today0()), el.dataset.sid); keepDraft(); if (route() === 'session') { render(); window.scrollTo(0, 0); } else location.hash = '#session'; break;
+      case 'edit': var s0 = allSessions().filter(function (s) { return s.id === el.dataset.id; })[0]; if (s0) { ui.D = draftFromSession(s0); keepDraft(); location.hash = '#session'; } break;
+      case 'del':
+        if (ui.armed === el.dataset.id) { var s1 = allSessions().filter(function (s) { return s.id === ui.armed; })[0]; ui.armed = null; if (s1) { var m = monOf(s1.date); delete S.weeks[m].s[s1.id]; saveWeek(m); toast('Session deleted'); } }
+        else ui.armed = el.dataset.id;
+        renderKeep(); break;
+      case 'discard': ui.D = null; keepDraft(); ui.rest = null; drawRest(); break;
+      case 'save': saveDraft(); break;
+      case 'selweek': ui.planWeek = Math.min(13, Math.max(1, +el.dataset.w)); ui.openDay = null; renderKeep(); break;
+      case 'goweek': ui.planWeek = +el.dataset.w; location.hash = '#plan'; break;
+      case 'openday': ui.openDay = i; ui.planWeek = null; break;
+      case 'wtype':
+        var w = ui.planWeek || Math.min(13, Math.max(1, weekNo(today0()))), ms = ymd(weekMon(w));
+        S.settings = Object.assign({}, st, { wt: Object.assign({}, st.wt || {}) }); if (v === 'normal') delete S.settings.wt[ms]; else S.settings.wt[ms] = v;
+        saveSettings(); renderKeep(); break;
+      case 'ci-edit': ui.ciEdit = true; ui.ci = null; renderKeep(); break;
+      case 'ci-cancel': ui.ciEdit = false; ui.ci = null; renderKeep(); break;
+      case 'ci-step': ui.ci.sleep = Math.max(0, Math.min(14, (+ui.ci.sleep || 0) + +v)); renderKeep(); break;
+      case 'ci-set': ui.ci[el.dataset.f] = String(ui.ci[el.dataset.f]) === v ? '' : +v; renderKeep(); break;
+      case 'ci-save':
+        var c = ui.ci, dS = ymd(today0()), o = { sleep: num(c.sleep) }; ['energy', 'sore', 'pain', 'bw', 'hr'].forEach(function (k) { if (num(c[k]) != null) o[k] = num(c[k]); }); if (c.where && o.pain) o.where = c.where; if (c.note) o.note = c.note;
+        weekDoc(monOf(dS)).c[dS] = o; saveWeek(monOf(dS)); ui.ci = null; ui.ciEdit = false; toast('Check-in saved'); renderKeep(); break;
+      case 'rest': ui.rest = { end: Date.now() + +el.dataset.sec * 1000, total: +el.dataset.sec }; drawRest(); break;
+      case 'rest-stop': ui.rest = null; drawRest(); break;
+      case 'timer': if (D.t0) { D.mins = Math.max(1, Math.round((Date.now() - D.t0) / 60000)); D.t0 = null; } else D.t0 = Date.now(); keepDraft(); renderKeep(); break;
+      case 'rpe': D.rpe = String(D.rpe) === v ? '' : +v; keepDraft(); renderKeep(); break;
+      case 'addset': D.ex[i].sets.push(''); keepDraft(); renderKeep(); break;
+      case 'fill': D.ex[i].sets = D.ex[i].sets.map(function (x) { return x === '' ? +v : x; }); keepDraft(); renderKeep(); break;
+      case 'rir': D.ex[i].rir = String(D.ex[i].rir) === v ? '' : +v; keepDraft(); renderKeep(); break;
+      case 'addex': D.ex.push({ n: 'New exercise', target: '', lo: 0, hi: 0, restSec: 90, cue: '', wl: 'lb', w: '', sets: ['', '', ''], rir: '', note: '', last: null, custom: true }); keepDraft(); renderKeep(); break;
+      case 'tries': D.probs[i].tries = Math.max(0, (+D.probs[i].tries || 0) + +v); keepDraft(); renderKeep(); break;
+      case 'sent': D.probs[i].sent = !D.probs[i].sent; if (D.probs[i].sent && !D.probs[i].tries) D.probs[i].tries = 1; keepDraft(); renderKeep(); break;
+      case 'delprob': D.probs.splice(i, 1); keepDraft(); renderKeep(); break;
+      case 'addprob': D.probs.push({ n: '', g: '', tries: 0, sent: false, note: '' }); keepDraft(); renderKeep(); var f = document.getElementById('p' + (D.probs.length - 1) + 'n'); if (f) f.focus(); break;
+      case 'pick': D.probs.push({ n: el.dataset.n, g: el.dataset.g, tries: 1, sent: false, note: '' }); keepDraft(); renderKeep(); break;
+      case 'travkind': D.trav.kind = v; keepDraft(); renderKeep(); break;
+      case 'addtrav': D.trav.sets.push({ m: '', p: '' }); keepDraft(); renderKeep(); break;
+      case 'delset': D.trav.sets.splice(i, 1); keepDraft(); renderKeep(); break;
+      case 'claps': D.cracks.laps = Math.max(0, (+D.cracks.laps || 0) + +v); keepDraft(); renderKeep(); break;
+      case 'csize': var k = D.cracks.sizes.indexOf(v); if (k >= 0) D.cracks.sizes.splice(k, 1); else D.cracks.sizes.push(v); keepDraft(); renderKeep(); break;
+      case 'addroute': D.routes.push({ n: '', g: '', style: '' }); keepDraft(); renderKeep(); break;
+      case 'delroute': D.routes.splice(i, 1); keepDraft(); renderKeep(); break;
+      case 'rstyle': D.routes[i].style = D.routes[i].style === v ? '' : v; keepDraft(); renderKeep(); break;
+      case 'logfilter': ui.logFilter = v; renderKeep(); break;
+      case 'train': S.settings = Object.assign({ wt: {} }, st || {}, { areaId: el.dataset.id, start: '', end: '' }); if (!S.settings.block) S.settings.block = ymd(monday(today0())); saveSettings(); render(); break;
+      case 'untrain': S.settings = Object.assign({}, st); delete S.settings.areaId; delete S.settings.start; delete S.settings.end; saveSettings(); render(); break;
+      case 'tick': var id = el.dataset.id, r = Object.assign({}, S.ticks[id] || {}); if (r[el.dataset.key] === v) delete r[el.dataset.key]; else r[el.dataset.key] = v; S.ticks[id] = r; persist('ticks_' + id, { r: r }); renderKeep(); break;
+      case 'tf': ui.tf[el.dataset.k] = v; renderKeep(); break;
+      case 'signout': signOut(); break;
+      case 'export':
+        var blob = new Blob([JSON.stringify(allDocs(), null, 1)], { type: 'application/json' }), link = document.createElement('a');
+        link.href = window.URL.createObjectURL(blob); link.download = 'approach-backup-' + ymd(today0()) + '.json'; document.body.appendChild(link); link.click(); link.remove();
+        ui.dataMsg = 'Backup downloaded.'; renderKeep(); break;
+      case 'wipe':
+        if (ui.armed === 'wipe') { ui.armed = null; var ids = Object.keys(allDocs()); S = blank(); touch(); ids.forEach(function (x) { persist(x, null); }); cacheLocal(); ui.dataMsg = 'Everything was erased.'; location.hash = '#home'; }
+        else { ui.armed = 'wipe'; renderKeep(); }
+        break;
+    }
+  });
+  document.addEventListener('input', function (e) {
+    var el = e.target;
+    if (el.dataset.b && ui.D) { setPath(ui.D, el.dataset.b, el.value); keepDraft(); }
+    else if (el.dataset.ci && ui.ci) ui.ci[el.dataset.ci] = el.value;
+  });
+  document.addEventListener('change', function (e) {
+    var el = e.target;
+    if (el.id === 'imp' && el.files && el.files[0]) {
+      var fr = new FileReader();
+      fr.onload = function () { try { var n = importDocs(JSON.parse(fr.result)); ui.dataMsg = n ? 'Imported ' + n + ' items. Your history is in the Log and Progress tabs.' : 'That file has nothing this app can read.'; } catch (err) { ui.dataMsg = 'That file could not be read. Choose a .json backup or history file.'; } render(); };
+      fr.readAsText(el.files[0]); return;
+    }
+    if (el.dataset.check) {
+      var id = el.dataset.check, c = Object.assign({}, S.checks[id] || {}); if (el.checked) c[el.dataset.i] = true; else delete c[el.dataset.i];
+      S.checks[id] = c; persist('checks_' + id, { c: c }); renderKeep();
+    } else if (el.dataset.trip && S.settings) {
+      var s = document.getElementById('t-start').value, en = document.getElementById('t-end').value; if (s && en && en < s) en = s; if (s && !en) en = s;
+      S.settings = Object.assign({}, S.settings, { start: s, end: en }); saveSettings(); renderKeep();
+    } else if (el.dataset.test) {
+      var p = el.dataset.test.split('.'), rows = S.tests.rows; rows[p[0]] = Object.assign({}, rows[p[0]] || {}); if (el.value) rows[p[0]][p[1]] = el.value; else delete rows[p[0]][p[1]];
+      persist('tests', S.tests);
+    } else if (el.dataset.b === 'date' && ui.D) { ui.D.w = weekNo(parse(el.value || ymd(today0()))); renderKeep(); }
+    else if (el.dataset.b && ui.D && /sets\.\d+$|\.w$|\.m$/.test(el.dataset.b)) { var a = document.activeElement && document.activeElement.id; renderKeep(); if (a) { var n = document.getElementById(a); if (n) n.focus(); } }
+  });
+  document.addEventListener('submit', function (e) {
+    if (e.target.id !== 'authform') return; e.preventDefault();
+    signIn(document.getElementById('a-email').value.trim(), document.getElementById('a-pw').value, e.submitter && e.submitter.dataset.mode === 'up');
+  });
+  document.addEventListener('toggle', function (e) { var el = e.target; if (el.dataset && el.dataset.day != null && el.open) ui.openDay = +el.dataset.day; }, true);
+
+  /* Tooltip for chart marks */
+  var tipEl = document.getElementById('tip');
+  function showTip(el) {
+    if (!tipEl) return; tipEl.textContent = el.dataset.tip; tipEl.hidden = false;
+    var r = el.getBoundingClientRect(), tw = tipEl.offsetWidth, th = tipEl.offsetHeight, x = Math.min(window.innerWidth - tw - 8, Math.max(8, r.left + r.width / 2 - tw / 2)), y = r.top - th - 8;
+    if (y < 8) y = r.bottom + 8;
+    tipEl.style.left = x + 'px'; tipEl.style.top = y + 'px';
+  }
+  document.addEventListener('pointerover', function (e) { var el = e.target.closest && e.target.closest('[data-tip]'); if (el) showTip(el); else if (tipEl) tipEl.hidden = true; });
+  document.addEventListener('focusin', function (e) { var el = e.target.closest && e.target.closest('[data-tip]'); if (el) showTip(el); });
+  document.addEventListener('focusout', function () { if (tipEl) tipEl.hidden = true; });
+  window.addEventListener('scroll', function () { if (tipEl) tipEl.hidden = true; }, { passive: true });
+
+  init();
+
+})();
+</script>
+</body>
+</html>
